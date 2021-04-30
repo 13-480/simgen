@@ -79,9 +79,8 @@ class Parser
   #   String その文字列に一致したら、結果には含めず読み飛ばす。
   #   Regexp その正規表現にマッチしたら、結果に含める。
   #   Proc    入力行を引数にprocを呼び出す。返り値は [値, 行の残り]。
-  #           返り値を結果に含める。proc中の失敗はraiseする。
+  #           返り値を結果に含める。proc中の失敗はfalseを返す。
   #   Array   先頭要素が '*' か '?' によって0回以上、0か1回の繰り返し。
-  #           はStringかRegexpのみで、途中で失敗しても巻戻しなし。
   # 各要素間は空白を読み飛ばす。行末は空白とコメントのみなのを確認して捨てる
   # 通常の返り値は結果のArray、エラー時はerrで報告して落ちる。
   def parse(syn)
@@ -144,17 +143,17 @@ end # of class Parser
 
 #### パーザクラス (シミュ特化)
 class SimParser
-  attr_accessor :meta		# ['title', タイトル]
-  attr_accessor :group		# グループ名=>[変数名]
-  attr_accessor :ui		# [下限, 上限, '*', 変数名] か ['br'] 等
-  attr_accessor :ui2		#
-  attr_accessor :query		# [ボタンテキスト, 中止, 追加, 変数名]
-  attr_accessor :relation	# [1次式, op, 1次式, ...]
-  attr_accessor :induce		# [変数名, 変数名1, 数値1,...]
-  attr_accessor :unlock		# [変数名1, 数値a, 変数名2, 数値b, 数値c]
-  attr_accessor :summary	# [フラグ, 変数名]か列見出し等
-  attr_accessor :details	# [フラグ, 変数名]か列見出し等
-  attr_accessor :var		# 変数名=>GLPK変数名
+  attr_accessor :meta           # ['title', タイトル]
+  attr_accessor :group          # グループ名=>[変数名]
+  attr_accessor :ui             # [下限, 上限, '*', 変数名] か ['br'] 等
+  attr_accessor :ui2            #
+  attr_accessor :query          # [ボタンテキスト, 中止, 追加, 変数名]
+  attr_accessor :relation       # [1次式, op, 1次式, ...]
+  attr_accessor :induce         # [変数名, 変数名1, 数値1,...]
+  attr_accessor :unlock         # [変数名1, 数値a, 変数名2, 数値b, 数値c]
+  attr_accessor :summary        # [フラグ, 変数名]か列見出し等
+  attr_accessor :details        # [フラグ, 変数名]か列見出し等
+  attr_accessor :var            # 変数名=>GLPK変数名
   #
   def initialize(lines)
     # Parserのインスタンス
@@ -175,11 +174,12 @@ class SimParser
     @varuip = method(:parse_varui)
     @intuip = method(:parse_intui)
     # 文法 (SimParse#parse 参照)
+    # [セクションタグ, 蓄積する配列, パターン, パターン, ...] (パターンのどれかにマッチ)
     @sec = [
       ['[UI2]', @ui2,
         [/br|space|width:\d+px|nowidth/],
         [/subsection/, STRre0],
-        ['(', @rngp, '..', @rngp, ')', /\*?/, @varp,
+        ['(', @rngp, '..', @rngp, ')', /\*?/, @varp, # !! この@varpはUI化予定
           ['?', '->', @intuip, @varuip, ['*', ',', @intuip, @varuip]]],
       ],
       ['[META]', @meta,
@@ -190,7 +190,7 @@ class SimParser
         [GROUPre],
         [@varp, ['*', @varp]],
       ],
-      ['[UI]', @ui,
+      ['[UI]', @ui,				# 消える予定
         [/br|space|width:\d+px|nowidth/],
         [/subsection/, STRre0],
         ['(',@rngp,'..',@rngp,')',/\*?/,@varp],
@@ -201,7 +201,7 @@ class SimParser
       ['[RELATION]', @relation,
         [@formp, ['*', /<=|>=|=/, @formp]],
       ],
-      ['[INDUCE]', @induce,
+      ['[INDUCE]', @induce,				# 消える予定
         [@varp, '->', @varp, @intp, ['*', ',', @varp, @intp]],
       ],
       ['[UNLOCK]', @unlock,
@@ -216,6 +216,7 @@ class SimParser
         [/newcolumn/, STRre0],
         [/[nv*]+/, @varp],
         [/[nv*]+/, GROUPre],
+        # !! 追加スキルボタンを作る予定
       ],
     ]
   end
@@ -225,7 +226,7 @@ class SimParser
     @var[str] = ('v%d' % @var.size) if ! @var.has_key?(str)
   end
 
-  # 入力から変数名を読む。GLPK変数に登録して変数名を返す
+  # 入力から変数名を読む。GLPK変数に登録して変数名を返す。変数名にはグループも指定可能
   def parse_var(line)
     line = line.lstrip
     return false if VARre !~ line
@@ -242,7 +243,7 @@ class SimParser
     vline = parse_var(line)
     return vline if vline
     # グループ名
-    return [$&, $'] if GROUPre =~ line
+    return [$&, $'] if GROUPre =~ line # !! [{グループ} 変数] も受け付けたい
     # マッチせず
     false
   end
@@ -349,6 +350,8 @@ class SimParser
         }
       }
     }
+    # !! これらは別関数にしよう
+    # !! 他に、@varpのuiでのグループの展開
   end
 
   # 入力全体をパーズ
@@ -358,7 +361,7 @@ class SimParser
       secno = 0
       secno += 1 while secno < @sec.size && ! @psr.parse([@sec[secno][0]])
       if secno >= @sec.size then
-        @psr.err('bad tag')
+        @psr.err('bad section tag')
         raise ParseError # これはこれでいいか
       end
       # そのセクションでの構文解析
@@ -373,7 +376,7 @@ class SimParser
           i += 1
         end
       end # of while ! @psr.empty? && i < syns.size
-    end
+    end # of while ! @psr.empty?
   end
 end # of class SimParser
 
