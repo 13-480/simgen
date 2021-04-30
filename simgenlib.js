@@ -1,9 +1,11 @@
-var job; // sim08glpk.js で定義されている
+// -*- mode:js; mode:outline-minor -*-
+
+var job; // !! どこで定義されている?
 var glpkmaximize, glpksubj, glpkbounds, glpkgenerals; // glpkソースの確定部分
 var vname; // GLPK変数=>変数名の辞書
 var summary; // GLPK変数=>SUMMARYに表示するフラグ
 var details; // GLPK変数=>DETAILSに表示するフラグ
-var fullrange; // GLPK変数の範囲最大の条件
+var fullrange; // GLPK変数の範囲最大の条件 (INDUCEで寄与元が動的なら事前には不明)
 var localstoragekey = 'simgen';
 
 
@@ -45,11 +47,13 @@ function doQueryBtnRun() {
     var glpktxt = glpkmaximize + glpksubj +
 	get_glpk_ui() + glpkbounds + glpkgenerals;
     dump_if_glpkshow(glpktxt);
-    str = []
-    for (var v of Object.keys(vname)) {
-	str.push(String(v) + ' ' + vname[v]);
+    if (glpkshow()) {
+	str = [];
+	for (var v of Object.keys(vname)) {
+	    str.push(String(v) + ' ' + vname[v]);
+	}
+	dump_if_glpkshow(str.join(' / '));
     }
-    dump_if_glpkshow(str.join(' / '));
     doGLPK(glpktxt);
 }
 
@@ -67,11 +71,16 @@ function doQueryBtnAdd() {
     doGLPK(glpktxt);
 }
 
+// GLPKログを表示する設定かどうか
+function glpkshow() {
+    var logNode = document.getElementById("glpklog");
+    return logNode.style.display != 'none';
+}
+
+
 // GLPKログを表示する設定ならjavascriptコンソールへ出力
 function dump_if_glpkshow(x) {
-    var logNode = document.getElementById("glpklog");
-    if (logNode.style.display == 'none') { return; }
-    console.log(x);
+    if (glpkshow()) { console.log(x); }
 }
 
 // プルダウン、テキストボックス、チェックボックス等から値を取得
@@ -126,7 +135,7 @@ function doGLPK(glpktxt) {
 	    job = null;
 	    updateQueryBtn('run/add');
 	} else if (e.data.action == 'log') {
-	    log(e.data.message);
+	    log_if_glpkshow(e.data.message);
 	}
     };
     tm = performance.now();
@@ -134,7 +143,7 @@ function doGLPK(glpktxt) {
 }
 
 // GLPK実行中にログを書き足し
-function log(value){
+function log_if_glpkshow(value){
     var logNode = document.getElementById("glpklog");
     if (logNode.style.display == 'none') { return; }
     logNode.appendChild(document.createTextNode(value + "\n"));
@@ -143,7 +152,7 @@ function log(value){
 
 
 //// 結果表示
-// 結果を挿入 // !! 暫定版 ここは非常に複雑になるはず
+// 結果を挿入
 function insertResult(res, tm) {
     var lines = [];
     // summary部分
@@ -181,19 +190,15 @@ function summaryText(res, tm) {
     var width = null;
     for (var x of summary) { // [フラグ, GLPK変数]か幅指定
 	if (! (x instanceof Array)) { // 幅指定
-	    if (x == 'nowidth') { // 幅指定解除
-		width = null;
-	    } else if (x.match(/width:\d+px/)) { // 幅指定
-		width = x;
-	    }
-	} else if (x[0].indexOf('*') >= 0 && res[x[1]] == 0) { // 0で表示抑制
+	    width = x.match(/width:\d+px/) ? x : null;
+	} else if (x[0].includes('*') && res[x[1]] == 0) { // 0で表示抑制
 		continue;
 	} else {
 	    var line = [];
-	    if (x[0].indexOf('n') >= 0) { // 変数名
+	    if (x[0].includes('n')) { // 変数名
 		line.push(vname[x[1]]);
 	    }
-	    if (x[0].indexOf('v') >= 0) { // 値
+	    if (x[0].includes('v')) { // 値
 		line.push(res[x[1]]);
 	    }
 	    if (line.length > 0) { // 表示するものがあれば出力
@@ -232,6 +237,9 @@ function detailsText(res, tm) {
 		}
 		row = carryover;
 		carryover = [];
+
+		// !! 追加スキルボタンの処理が入る予定
+		
 	    } else if (x[0] == '!') { // 先頭!は強制で先頭
 		(row || lines).unshift(x.slice(1));
 	    } else {
@@ -240,17 +248,18 @@ function detailsText(res, tm) {
 	} else { // [フラグ, GLPK変数]
 	    line = [];
 	    // 0で表示抑制
-	    if (x[0].indexOf('*') >= 0 && res[x[1]] == 0) {
+	    if (x[0].includes('*') && res[x[1]] == 0) {
 		continue;
 	    }
 	    // 変数名
-	    if (x[0].indexOf('n') >= 0) {
+	    if (x[0].includes('n')) {
 		line.push(vname[x[1]]);
 	    }
 	    // 値
-	    if (x[0].indexOf('v') >= 0) {
+	    if (x[0].includes('v')) {
 		line.push(res[x[1]]);
-	    } // 追加
+	    }
+	    // 範囲一杯かどうかで判断して現在列か次の列に追加する
 	    if (line.length > 0) {
 		if (isFullrange(res, x[1])) {
 		    carryover.push(line.join(' '));
@@ -268,8 +277,9 @@ function detailsText(res, tm) {
 }
 
 // 与えられたGLPK変数がUIセクションで範囲一杯の指定を受けているか
+// ただし、動的な場合は事前には決まっていないのでどうする?
 function isFullrange(res, v) {
-    var x = fullrange[v];
+    var x = fullrange[v]; // !! fullrange の中身はなんだ?
     if (! x) { return false; }
     if (x.length >= 2 && res[x[0]] != x[1]) { return false; }
     if (x.length >= 4 && res[x[2]] != x[3]) { return false; }
@@ -304,7 +314,7 @@ function clearResult() {
 }
 
 //// localstrageの記録と回復
-// UIのパラメータをlocal storageに記録
+// UIのパラメータをlocal storage
 function saveUIparam() {
     // 変数名をキーにして辞書を作る
     var res = {};
