@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 # class Parse で Array の扱いを変えた
 # UIセクションとINDUCEセクションを発展・統合
-# 大幅に変更が入った
-
-# UIとINDUCEセクションを等号したUI2セクションのパーズまでは書いたので、
+# UIとINDUCEセクションを統合したUI2セクションのパーズまでは書いたので、
 # GLPKとhtmlを吐く所をこれから書く
 
 #### 正規表現
@@ -21,10 +19,20 @@ STRre0 = /^[^\n#<>]+/
 def err(*xs)
   xs.each {|x| $stderr.puts x.inspect }
 end
-def pp(x)
-  return x.to_s if ! x.kind_of?(Array)
-  '[' + x.map {|y| pp(y) }.join(',') + ']'
-end
+def pp(x, delim = "\n")
+  case x
+  when Array
+    if delim == "\n" then
+      x.map {|y| pp(y, ',') }.join(delim)
+    else
+      '[' + x.map {|y| pp(y, ',') }.join(',') + ']'
+    end
+  when Hash
+    x.map {|k,v| pp(k, ',') + ' => ' + pp(v, ',') }.join(delim)
+  else
+    x.to_s
+  end
+end  
 
 #### パーズエラークラス
 class ParseError < StandardError; end
@@ -236,7 +244,7 @@ class SimParser
 
   # 入力から変数名かグループ名か変数名集合を読む。
   # 変数名ならGLPK変数に登録して変数名を返し、
-  # グループ名か変数名集合なら変数名とグループ名からなるArrayを返す。
+  # 変数名、グループ名、または、変数名集合なら変数名とグループ名からなるArrayを返す。
   def parse_varui(line)
     # 変数名
     vline = parse_var(line)
@@ -344,7 +352,8 @@ class SimParser
     resolve_group
     # @relationを整える ([1次式, op, 1次式, ...]においてグループの和を展開)
     resolve_group_in_relation
-    # !! @varpのuiでのグループの展開
+    # @ui2を整える (変数名集合でのグループ名の展開)
+    resolve_group_in_ui
   end
 
   # パーズ後に@group0から@groupを生成 (グループ名と変数名の配列をHashに変換)
@@ -363,7 +372,7 @@ class SimParser
         raise ParseError # これはこれでいいか
       end
     }
-  end
+  end # of resolve_group
 
   # パーズ後に@relationを整える ([1次式, op, 1次式, ...]においてグループの和を展開)
   def resolve_group_in_relation
@@ -379,7 +388,38 @@ class SimParser
         }
       }
     }
-  end
+  end # of resolve_group_in_relation
+
+  # @ui2を整える (変数名集合でのグループ名の展開)
+  # @ui2の要素は、UI指定なら要素数3以上で、
+  # (0開始で) 第2成分が '' か '*' なら範囲有り、違えば範囲なし (以下参照)
+  # |  ['(', @rngp, '..', @rngp, ')', /\*?/, @varuip,
+  # |   ['?', '->', @intuip, @varuip, ['*', ',', @intuip, @varuip]]],
+  # |  [@varuip,
+  # |   '->', @intuip, @varuip, ['*', ',', @intuip, @varuip]],
+  # つまり、範囲有りなら0開始で、第3, 5,...成分、範囲なしなら、第0, 2,...成分が@varuip
+  # @varuipは、
+  # 変数名、グループ名、または、変数名集合なら変数名とグループ名からなるArray
+
+  def resolve_group_in_ui
+    @ui2.each {|line|
+      next if line.size < 3
+      i = (line[2] == '' || line[2] == '*') ? 3 : 0 # @varuipの最初の位置
+      while i < line.size
+        if line[i].kind_of?(String) && GROUPre =~ line[i] then # グループ名
+          line[i] = @group[line[i]]
+        elsif line[i].kind_of?(Array) then # 変数名集合
+          line[i].size.times {|j|
+            if GROUPre =~ line[i][j] then # 変数名集合の中のグループ名
+              line[i][j] = @group[line[i][j]] # とりあえずArrayを埋める
+            end
+          }
+          line[i] = line[i].flatten
+        end
+        i += 2
+      end
+    }
+  end # of resolve_group_in_ui
 
   # 入力全体をパーズ
   def parse_lines
@@ -763,14 +803,14 @@ if $0 == __FILE__ then
   psr.parse
 #   p psr.meta
 #   $stderr.puts psr.ui.inspect
-   $stderr.puts psr.ui2.map {|x| pp(x) }
+   $stderr.puts 'UI2', pp(psr.ui2)
 #   $stderr.puts psr.query.inspect
-#   $stderr.puts psr.relation.inspect
+#   $stderr.puts 'RELATION', pp(psr.relation)
 #    $stderr.puts psr.induce.inspect
 #   p psr.unlock
 #   $stderr.puts psr.summary.inspect
 #   $stderr.puts psr.details.inspect
-# $stderr.puts psr.group.inspect
+# $stderr.puts 'GROUP', pp(psr.group)
 # $stderr.puts psr.var
 
 #  puts GenHTML.gen_html(psr)
