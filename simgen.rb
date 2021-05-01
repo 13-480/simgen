@@ -448,68 +448,77 @@ class SimParser
 end # of class SimParser
 
 #### GLPKソース生成
+# SimParserので収集したのは以下
+# @meta     ['title', タイトル]
+# @group    グループ名=>[変数名]
+# @ui2      [最小値, 最大値, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
+# @query    [ボタンテキスト, 中止, 追加, 変数名]
+# @relation [1次式, op, 1次式, ...]
+# @unlock   [変数名1, 数値a, 変数名2, 数値b, 数値c]
+# @summary  [フラグ, 変数名]か列見出し等
+# @details  [フラグ, 変数名]か列見出し等
+# @var      変数名=>GLPK変数名
+#
+# これらを元に以下をGenGLPKで設定する。
+# @maximize	Array。@queryから確定
+# @subj		Array。@relationと@unlockから確定。@ui2からは何も登録されない。
+# @bounds	GLPK変数名=>[最小, 最大]。@varと@unlockからすべてのkeyは作っておいて、
+#		@ui2で確定するものは更新する。確定しないものは実行時に更新。
+# @generals	Array。@varと@unlockから確定
+# @induce	寄与先GLPK変数名=>1次式のGLPK文字列。@ui2で確定するもののみ文字列化。
+#		確定しないものは実行時に追加される。キーが実行時に追加される可能性有。
+#		実行時に更新された後、「Subject to」へ送られる。
+
 class GenGLPK
-  attr_accessor :maximize, :subj, :bounds, :generals
+  attr_accessor :maximize, :subj, :bounds, :generals, :induce
   def initialize(psr)
-    @psr = psr
+    @psr = psr # SimParser (not Parser)
     @maximize = ['Maximize']
-    @subj = ['Subject to']
-    @bounds = ['Bounds']
+    @subj = {}
+    @bounds = Hash.new {|h, k| h[k] = [-Float::Infinity, Float::Infinity] }
     @generals = ['Generals']
-    # ソース末尾にENDも必要?
+    @induce = Hash.new {|h, k| h[k] = '' }
+    # !! ソース末尾にENDも必要?
   end
-  # GLPKソースを生成して、@maximize, @subj, @generals, @boundsにセットする
-  # (後からUIから取得する式があるので、全体をまとめて生成はできない)
+  # GLPKソースやその元を生成し、@maximize, @subj, @bounds, @generals, @induceに設定
+  # 「Subject To」と「Bounds」は実行時まで確定しない。
   def gen_glpk
-    # query (Maximize)
-    var = @psr.var[@psr.query[0][3]]
-    @maximize.push var
-    # ui (Subject to, Generals (min, max 変数))
-    self.do_ui
-    # relation (Subject to)
-    self.do_relation
-    # unlock (Generals, Subject to)
-    self.do_unlock
-    # induce
-    self.do_induce
-    # var (Generals) 他で新規変数があるので最後にやる。
-    @generals.push(@psr.var.values.each_slice(17).map {|x| x.join(' ') })
-    ## 変数の範囲が無指定だと0以上なので指定する
-    @bounds += @psr.var.values.map {|x| '-inf <= %s' % x }
+    # query -> maximize
+    var v = @psr.var[@psr.query[0][3]]
+    @maximize.push v
+    #
+    self.do_ui		# ui2 -> bounds, induce # !! 中身まだ
+    self.do_relation	# relation -> subj
+    self.do_unlock    	# unlock -> var, subj (varの処理より先にやること)
+    self.do_var    	# var -> generals, bounds (unlockの処理より後にやること)
   end # of gen_glpk
 
-  # UIセクションの範囲指定を@subjに登録。min, max変数を@psr.varに登録
-  # UIの要素は [下限, 上限, '*', 変数名] か ['br']等
-  # 上限・下限が定数ならInteger、ないときはnilになっている
+  # UIセクションの範囲指定の確定分だけ@boundsに登録。残りは実行時。
+  # 寄与指定のうち確定分は@indeceに登録。残りは実行時。
+  # UIの要素は [下限, 上限, '*', 変数名, 値1, 変数名1,...]  か幅指定等
+  # (始めの3つと値1以降は、一方だけなら省略可能)
+  # 上限・下限や値は、定数はInteger、プルダウンはArray、チェックボックスはSymbol、
+  # テキストボックスはString、ないならnil。
+  # 変数名は、変数名・グループ名はString、プルダウンはArray。
   def do_ui
-    @psr.ui.each {|x|
-      next if x.size != 4 # UI部品以外は無視
-      # 変数
-      hv = {(x[3])=>1}
-      # min
-      hmin = case x[0]
-             when Array, String, :checkbox
-               vmin = x[3]+':min'
-               @psr.register_var(vmin)
-               {vmin => 1}
-             when Integer
-               {''=>x[0]}
-             else
-               nil
-             end
-      @subj.push self.simplify(hmin, '<=', hv) if hmin
-      # max
-      hmax = case x[1]
-             when Array, String, :checkbox
-               vmax = x[3]+':max'
-               @psr.register_var(vmax)
-               {vmax => 1}
-             when Integer
-               {''=>x[1]}
-             else
-               nil
-             end
-      @subj.push self.simplify(hv, '<=', hmax) if hmax
+    # 範囲を調べて@boundsへ登録
+    @psr.ui2.each {|x|
+      next if x.size < 3 # UI部品以外は無視
+      next if x[2] != '' && x[2] != '*' # 範囲省略も無視
+      next if VARre !~ x[3] # 変数が確定でなければ無視
+      @bounds[x[3]][0] = [@bounds[x[3]][0], x[0]].max if x[0].kind_of?(Integer)
+      @bounds[x[3]][1] = [@bounds[x[3]][1], x[1]].min if x[1].kind_of?(Integer)
+    }
+    # 寄与を調べて@induceへ登録
+    @psr.ui2.each {|x|
+      next if x.size < 3 # UI部品以外は無視
+      x = x[3..-1] if x[2] == '' || x[2] == '*' # 範囲部分は捨てる
+      next if x.size  <= 1 # 寄与のないものは無視
+      next unless x[0].kind_of?(String) && VARre =~ x[0] # 寄与元未確定は無視
+      x[1..-1].each_slice(2) {|c, v|
+        next unless v.kind_of?(String) && VARre =~ v # 寄与先未確定は無視
+        @induce[@psr.var[v]] += '%+d %s' % [c, @psr.var[x[0]]]
+      }
     }
   end # of do_ui
 
@@ -537,14 +546,17 @@ class GenGLPK
   end # of simplify
 
   # UNLOCKセクションを@subjに登録、補助変数は@psr.varに新規に登録
+  # 変数名1、2は@boundsに登録しなくて良いだろうし、補助変数もよくわからないからしない
   # UNLOCKの要素は [変数名1, 数値a, 変数名2, 数値b, 数値c]
   def do_unlock
     @psr.unlock.each {|x|
       next if x.size != 5 # 上限解放指定以外は無視 (今はないけど)
       vv = x[0] + ':' + x[2]
       @psr.register_var(vv) # 補助変数
-      @subj.push [@psr.var[x[2]], '%+d' % (x[3]-x[4]), @psr.var[vv], '<=', x[3]].join(' ')
-      @subj.push [@psr.var[x[0]], '%+d' % (-x[1]), @psr.var[vv], '>= 0'].join(' ')
+      w = @psr.var[vv]
+      v1, a, v2, b, c = @psr.var[x[0]], x[1], @psr.var[x[2]], x[3], x[4]
+      @subj.push [v2, '+%d'%(b-c), w, '<=', b].join(' ')
+      @subj.push [v1, '%+d'%(-a), w, '>= 0'].join(' ')
     }
   end # of do_unlock
 
@@ -571,6 +583,16 @@ class GenGLPK
       @subj.push([lhs, '=', rhs].join(' '))
     }
   end # of do_induce
+
+  # @psr.varから @generalsと@boundsを設定
+  def do_var
+    # 変数の登録
+    @generals.push(@psr.var.values.each_slice(17).map {|x| x.join(' ') })
+    # 変数の範囲をとりあえず実数全体にしておく
+    @psr.var.each_value {|x| 
+      @bounds[x] = [-Float::Infinity, Float::Infinity] if ! @bounds.has_key?(x)
+    }
+  end # of do_var
 end # of class GenGLPK
 
 #### html生成
