@@ -474,8 +474,8 @@ class GenGLPK
   def initialize(psr)
     @psr = psr # SimParser (not Parser)
     @maximize = ['Maximize']
-    @subj = {}
-    @bounds = Hash.new {|h, k| h[k] = [-Float::Infinity, Float::Infinity] }
+    @subj = []
+    @bounds = Hash.new {|h, k| h[k] = [-Float::INFINITY, Float::INFINITY] }
     @generals = ['Generals']
     @induce = Hash.new {|h, k| h[k] = '' }
     # !! ソース末尾にENDも必要?
@@ -484,7 +484,7 @@ class GenGLPK
   # 「Subject To」と「Bounds」は実行時まで確定しない。
   def gen_glpk
     # query -> maximize
-    var v = @psr.var[@psr.query[0][3]]
+    v = @psr.var[@psr.query[0][3]]
     @maximize.push v
     #
     self.do_ui		# ui2 -> bounds, induce # !! 中身まだ
@@ -505,7 +505,7 @@ class GenGLPK
     @psr.ui2.each {|x|
       next if x.size < 3 # UI部品以外は無視
       next if x[2] != '' && x[2] != '*' # 範囲省略も無視
-      next if VARre !~ x[3] # 変数が確定でなければ無視
+      next if !x[3].kind_of?(String) || VARre !~ x[3] # 変数が確定でなければ無視
       @bounds[x[3]][0] = [@bounds[x[3]][0], x[0]].max if x[0].kind_of?(Integer)
       @bounds[x[3]][1] = [@bounds[x[3]][1], x[1]].min if x[1].kind_of?(Integer)
     }
@@ -560,37 +560,13 @@ class GenGLPK
     }
   end # of do_unlock
 
-  # INDUCEセクションを@subjに登録
-  # INDUCEの要素は [変数名, 変数名1, 数値1,...]
-  def do_induce
-    h = {}
-    @psr.induce.each {|x|
-      next if x.size <= 1 # 寄与指定以外は無視 (今はないけど)
-      x[1..-1].each_slice(2) {|v, c|
-        h[v] = Hash.new(0) if ! h.has_key?(v)
-        h[v][x[0]] += c
-      }
-    }
-    #
-    h.each {|v, x|
-      rhs = -x['']
-      x[''] = 0
-      #
-      x[v] -= 1
-      x.reject! {|w, c| c == 0 }
-      lhs = x.map {|w, c| '%+d %s' % [c, @psr.var[w]] }
-      #
-      @subj.push([lhs, '=', rhs].join(' '))
-    }
-  end # of do_induce
-
   # @psr.varから @generalsと@boundsを設定
   def do_var
     # 変数の登録
     @generals.push(@psr.var.values.each_slice(17).map {|x| x.join(' ') })
     # 変数の範囲をとりあえず実数全体にしておく
     @psr.var.each_value {|x| 
-      @bounds[x] = [-Float::Infinity, Float::Infinity] if ! @bounds.has_key?(x)
+      @bounds[x] = [-Float::INFINITY, Float::INFINITY] if ! @bounds.has_key?(x)
     }
   end # of do_var
 end # of class GenGLPK
@@ -833,7 +809,15 @@ if $0 == __FILE__ then
 #   $stderr.puts psr.summary.inspect
 #   $stderr.puts psr.details.inspect
 # $stderr.puts 'GROUP', pp(psr.group)
-# $stderr.puts psr.var
+   # $stderr.puts psr.var
+
+   glpk = GenGLPK.new(psr)
+   glpk.gen_glpk
+   $stderr.puts 'maximize', pp(glpk.maximize)
+   $stderr.puts 'subj', pp(glpk.subj)
+   $stderr.puts 'bounds', pp(glpk.bounds)
+   $stderr.puts 'generals', pp(glpk.generals)
+   $stderr.puts 'induce', pp(glpk.induce)
 
 #  puts GenHTML.gen_html(psr)
 end
