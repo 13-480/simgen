@@ -21,6 +21,10 @@ STRre0 = /^[^\n#<>]+/
 def err(*xs)
   xs.each {|x| $stderr.puts x.inspect }
 end
+def pp(x)
+  return x.to_s if ! x.kind_of?(Array)
+  '[' + x.map {|y| pp(y) }.join(',') + ']'
+end
 
 #### パーズエラークラス
 class ParseError < StandardError; end
@@ -175,11 +179,14 @@ class SimParser
     # 文法 (SimParse#parse 参照)
     # [セクションタグ, 蓄積する配列, パターン, パターン, ...] (パターンのどれかにマッチ)
     @sec = [
+      # UI2 の最後の2つは、範囲有りなら (0開始で) 第2成分が '' か '*' になることで判断
       ['[UI2]', @ui2,
         [/br|space|width:\d+px|nowidth/],
         [/subsection/, STRre0],
         ['(', @rngp, '..', @rngp, ')', /\*?/, @varuip,
           ['?', '->', @intuip, @varuip, ['*', ',', @intuip, @varuip]]],
+        [@varuip,
+         '->', @intuip, @varuip, ['*', ',', @intuip, @varuip]],
       ],
       ['[META]', @meta,
         [/title/, STRre0],
@@ -239,13 +246,13 @@ class SimParser
     # 変数名集合
     if line[0] == '[' then
       ary = []
-      return false if line !~ /\]/
+      return false if line[1..-1] !~ /\]/
       vs, line = $`.split(' '), $'.lstrip
       vs.each {|x|
         # 変数名
         vline = parse_var(x)
         if vline then
-          return false unless line.empty?
+          return false unless vline[1].empty?
           ary.push vline[0]
         elsif (GROUPre =~ x && $'.empty?) then # グループ名
           ary.push x
@@ -751,12 +758,12 @@ end # of module GenHTML
 
 # 直に呼ばれたらARGFからソースを読み、htmlを出力する
 if $0 == __FILE__ then
-  lines = ARGF.to_a
+  lines = ARGF.to_a.map {|line| line.encode('UTF-8', 'UTF-8') }
   psr = SimParser.new(lines)
   psr.parse
 #   p psr.meta
 #   $stderr.puts psr.ui.inspect
-   $stderr.puts psr.ui2.inspect
+   $stderr.puts psr.ui2.map {|x| pp(x) }
 #   $stderr.puts psr.query.inspect
 #   $stderr.puts psr.relation.inspect
 #    $stderr.puts psr.induce.inspect
@@ -766,5 +773,5 @@ if $0 == __FILE__ then
 # $stderr.puts psr.group.inspect
 # $stderr.puts psr.var
 
- puts GenHTML.gen_html(psr)
+#  puts GenHTML.gen_html(psr)
 end
