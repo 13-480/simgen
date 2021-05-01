@@ -41,7 +41,6 @@ class Parser
     $stderr.puts 'ERROR at line %d: %s' % [lineno +1, str]
     $stderr.puts '| ' + @linessave[lineno][0...pos]
     $stderr.puts '| ' + @lines[0]
-    # exit(1) # 暫定
   end
   # 空行、コメントをスキップする
   def skip
@@ -179,7 +178,7 @@ class SimParser
       ['[UI2]', @ui2,
         [/br|space|width:\d+px|nowidth/],
         [/subsection/, STRre0],
-        ['(', @rngp, '..', @rngp, ')', /\*?/, @varp, # !! この@varpはUI化予定
+        ['(', @rngp, '..', @rngp, ')', /\*?/, @varuip,
           ['?', '->', @intuip, @varuip, ['*', ',', @intuip, @varuip]]],
       ],
       ['[META]', @meta,
@@ -190,19 +189,11 @@ class SimParser
         [GROUPre],
         [@varp, ['*', @varp]],
       ],
-      ['[UI]', @ui,				# 消える予定
-        [/br|space|width:\d+px|nowidth/],
-        [/subsection/, STRre0],
-        ['(',@rngp,'..',@rngp,')',/\*?/,@varp],
-      ],
       ['[QUERY]', @query,
         [STRre, STRre, STRre, @varp],
       ],
       ['[RELATION]', @relation,
         [@formp, ['*', /<=|>=|=/, @formp]],
-      ],
-      ['[INDUCE]', @induce,				# 消える予定
-        [@varp, '->', @varp, @intp, ['*', ',', @varp, @intp]],
       ],
       ['[UNLOCK]', @unlock,
         [@varp, @intp, ',', @varp, @intp, @intp],
@@ -236,14 +227,34 @@ class SimParser
     [v, line]
   end
 
-  # 入力から変数名かグループ名を読む
-  # 変数名ならGLPK変数に登録して変数名を返し、グループ名ならグループ名を返す
+  # 入力から変数名かグループ名か変数名集合を読む。
+  # 変数名ならGLPK変数に登録して変数名を返し、
+  # グループ名か変数名集合なら変数名とグループ名からなるArrayを返す。
   def parse_varui(line)
     # 変数名
     vline = parse_var(line)
     return vline if vline
     # グループ名
-    return [$&, $'] if GROUPre =~ line # !! [{グループ} 変数] も受け付けたい
+    return [[$&], $'] if GROUPre =~ line
+    # 変数名集合
+    if line[0] == '[' then
+      ary = []
+      return false if line !~ /\]/
+      vs, line = $`.split(' '), $'.lstrip
+      vs.each {|x|
+        # 変数名
+        vline = parse_var(x)
+        if vline then
+          return false unless line.empty?
+          ary.push vline[0]
+        elsif (GROUPre =~ x && $'.empty?) then # グループ名
+          ary.push x
+        else
+          return false
+        end
+      }
+      return [ary, line]
+    end
     # マッチせず
     false
   end
@@ -261,7 +272,7 @@ class SimParser
     if /^-?\d+/ =~ line then # 数値
       [$&.to_i, $']
     elsif /^\[(.*)\]/ =~ line then # 数値集合
-      [$1.split(' ').map {|x| x.to_i }, $'] #' (fontlockのバグ回避)
+      [$1.split(' ').map {|x| x.to_i }, $']
     else
       false
     end
@@ -313,7 +324,7 @@ class SimParser
     elsif /^-?\d+/ =~ line then # 数値
       [$&.to_i, $']
     elsif /^\[(.*)\]/ =~ line then # 数値集合
-      [$1.split(' ').map {|x| x.to_i }, $'] #' (fontlockのバグ回避)
+      [$1.split(' ').map {|x| x.to_i }, $']
     else
       [:none, line]
     end
@@ -323,6 +334,14 @@ class SimParser
   def parse
     parse_lines
     # @group0から@groupを生成 (グループ名と変数名の配列をHashに変換)
+    resolve_group
+    # @relationを整える ([1次式, op, 1次式, ...]においてグループの和を展開)
+    resolve_group_in_relation
+    # !! @varpのuiでのグループの展開
+  end
+
+  # パーズ後に@group0から@groupを生成 (グループ名と変数名の配列をHashに変換)
+  def resolve_group
     grp = nil
     @group0.flatten.each {|x|
       if ! grp && GROUPre !~ x then
@@ -337,7 +356,10 @@ class SimParser
         raise ParseError # これはこれでいいか
       end
     }
-    # @relationを整える ([1次式, op, 1次式, ...]においてグループの和を展開)
+  end
+
+  # パーズ後に@relationを整える ([1次式, op, 1次式, ...]においてグループの和を展開)
+  def resolve_group_in_relation
     @relation.each {|line|
       0.step(line.size-1, 2) {|i|
         h = line[i]
@@ -350,8 +372,6 @@ class SimParser
         }
       }
     }
-    # !! これらは別関数にしよう
-    # !! 他に、@varpのuiでのグループの展開
   end
 
   # 入力全体をパーズ
