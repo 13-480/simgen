@@ -39,6 +39,7 @@ class ParseError < StandardError; end
 
 #### 簡易パーザクラス (簡易だが汎用ではある)
 class Parser
+  attr_accessor :lines
   # 空行、コメント行
   EMPTYre = /^\s*(#.*)?$/
   # 入力の登録
@@ -188,7 +189,7 @@ class SimParser
     # [セクションタグ, 蓄積する配列, パターン, パターン, ...] (パターンのどれかにマッチ)
     @sec = [
       # UI2 の最後の2つは、範囲有りなら (0開始で) 第2成分が '' か '*' になることで判断
-      ['[UI2]', @ui2,
+      ['<UI2>', @ui2,
         [/br|space|width:\d+px|nowidth/],
         [/subsection/, STRre0],
         ['(', @rngp, '..', @rngp, ')', /\*?/, @varuip,
@@ -196,29 +197,29 @@ class SimParser
         [@varuip,
          '->', @intuip, @varuip, ['*', ',', @intuip, @varuip]],
       ],
-      ['[META]', @meta,
+      ['<META>', @meta,
         [/title/, STRre0],
         [/glpk/, STRre],
       ],
-      ['[GROUP]', @group0,
+      ['<GROUP>', @group0,
         [GROUPre],
         [@varp, ['*', @varp]],
       ],
-      ['[QUERY]', @query,
+      ['<QUERY>', @query,
         [STRre, STRre, STRre, @varp],
       ],
-      ['[RELATION]', @relation,
+      ['<RELATION>', @relation,
         [@formp, ['*', /<=|>=|=/, @formp]],
       ],
-      ['[UNLOCK]', @unlock,
+      ['<UNLOCK>', @unlock,
         [@varp, @intp, ',', @varp, @intp, @intp],
       ],
-      ['[SUMMARY]', @summary,
+      ['<SUMMARY>', @summary,
         [/width:\d+px|nowidth/],
         [/[nv*]+/, @varp],
         [/[nv*]+/, GROUPre],
       ],
-      ['[DETAILS]', @details,
+      ['<DETAILS>', @details,
         [/newcolumn/, STRre0],
         [/[nv*]+/, @varp],
         [/[nv*]+/, GROUPre],
@@ -506,8 +507,12 @@ class GenGLPK
       next if x.size < 3 # UI部品以外は無視
       next if x[2] != '' && x[2] != '*' # 範囲省略も無視
       next if !x[3].kind_of?(String) || VARre !~ x[3] # 変数が確定でなければ無視
-      @bounds[x[3]][0] = [@bounds[x[3]][0], x[0]].max if x[0].kind_of?(Integer)
-      @bounds[x[3]][1] = [@bounds[x[3]][1], x[1]].min if x[1].kind_of?(Integer)
+      if x[0].kind_of?(Integer) then
+        @bounds[@psr.var[x[3]]][0] = [@bounds[@psr.var[x[3]]][0], x[0]].max
+      end
+      if x[1].kind_of?(Integer) then
+        @bounds[@psr.var[x[3]]][1] = [@bounds[@psr.var[x[3]]][1], x[1]].min
+      end
     }
     # 寄与を調べて@induceへ登録
     @psr.ui2.each {|x|
@@ -555,7 +560,7 @@ class GenGLPK
       @psr.register_var(vv) # 補助変数
       w = @psr.var[vv]
       v1, a, v2, b, c = @psr.var[x[0]], x[1], @psr.var[x[2]], x[3], x[4]
-      @subj.push [v2, '+%d'%(b-c), w, '<=', b].join(' ')
+      @subj.push [v2, '%+d'%(b-c), w, '<=', b].join(' ')
       @subj.push [v1, '%+d'%(-a), w, '>= 0'].join(' ')
     }
   end # of do_unlock
@@ -801,7 +806,7 @@ if $0 == __FILE__ then
   psr.parse
 #   p psr.meta
 #   $stderr.puts psr.ui.inspect
-   $stderr.puts 'UI2', pp(psr.ui2)
+#   $stderr.puts 'UI2', pp(psr.ui2)
 #   $stderr.puts psr.query.inspect
 #   $stderr.puts 'RELATION', pp(psr.relation)
 #    $stderr.puts psr.induce.inspect
@@ -809,15 +814,14 @@ if $0 == __FILE__ then
 #   $stderr.puts psr.summary.inspect
 #   $stderr.puts psr.details.inspect
 # $stderr.puts 'GROUP', pp(psr.group)
-   # $stderr.puts psr.var
-
-   glpk = GenGLPK.new(psr)
-   glpk.gen_glpk
-   $stderr.puts 'maximize', pp(glpk.maximize)
-   $stderr.puts 'subj', pp(glpk.subj)
-   $stderr.puts 'bounds', pp(glpk.bounds)
-   $stderr.puts 'generals', pp(glpk.generals)
-   $stderr.puts 'induce', pp(glpk.induce)
-
+#    $stderr.puts 'var', pp(psr.var)
+#   glpk = GenGLPK.new(psr)
+#   glpk.gen_glpk
+#   $stderr.puts 'maximize', pp(glpk.maximize)
+#   $stderr.puts 'subj', pp(glpk.subj)
+#   $stderr.puts 'bounds', pp(glpk.bounds)
+#   $stderr.puts 'generals', pp(glpk.generals)
+#   $stderr.puts 'induce', pp(glpk.induce)
+#
 #  puts GenHTML.gen_html(psr)
 end
