@@ -172,7 +172,7 @@ class SimParser
     @psr = Parser.new(lines)
     # 結果を保存する配列 (@group0は後に@groupに変換)
     @meta, @group0, @ui, @query, @relation = [], [], [], [], []
-    @induce, @unlock, @summary, @details = [], [], [], []
+    @unlock, @summary, @details = [], [], []
     @ui2 = []
     # 変数名=>GLPK変数のHash
     @var = {}
@@ -243,40 +243,44 @@ class SimParser
     [v, line]
   end
 
+  # グループ名
+  def parse_group(line)
+    line = line.lstrip
+    return false if GROUPre !~ line
+    [$&, $']
+  end
 
-  # !! parse_varset (変数名集合のパーズ) もあった方がよいあ
-  # !! parse_vargroup (グループ名のパーズ) もあった方がよいあ
+  # 変数名集合
+  def parse_varset(line)
+    line = line.lstrip
+    return false if line[0] != '['
+    ary = []
+    return false if line[1..-1] !~ /\]/
+    vs, line = $`.split(' '), $'.lstrip
+    vs.each {|x|
+      vline = parse_var(x)
+      if vline then # 変数名
+        return false unless vline[1].empty?
+        ary.push vline[0]
+      elsif (GROUPre =~ x && $'.empty?) then # グループ名
+        ary.push x
+      else
+        return false
+      end
+    }
+    # 新規グループとして登録
+    grp = "{#{@group.size}}"
+    @group[grp] = ary
+    [grp, line]
+  end
 
   # 入力から変数名かグループ名か変数名集合を読む。
-  # 変数名ならGLPK変数に登録して変数名を返し、
-  # 変数名、グループ名、または、変数名集合なら変数名とグループ名からなるArrayを返す。
+  # 変数名ならGLPK変数に登録して変数名 (String) を返し、
+  # グループ名ならグループ名 (String) を返し、
+  # 変数名集合なら、新規グループとして登録して、そのグループ名 (String) を返す。
   def parse_varui(line)
-    # 変数名
-    vline = parse_var(line)
-    return vline if vline
-    # グループ名
-    return [[$&], $'] if GROUPre =~ line
-    # 変数名集合
-    if line[0] == '[' then
-      ary = []
-      return false if line[1..-1] !~ /\]/
-      vs, line = $`.split(' '), $'.lstrip
-      vs.each {|x|
-        # 変数名
-        vline = parse_var(x)
-        if vline then
-          return false unless vline[1].empty?
-          ary.push vline[0]
-        elsif (GROUPre =~ x && $'.empty?) then # グループ名
-          ary.push x
-        else
-          return false
-        end
-      }
-      return [ary, line]
-    end
-    # マッチせず
-    false
+    # 変数名、グループ名、変数名集合
+    parse_var(line) || parse_group(line) || parse_varset(line)
   end
 
   # 入力から整数を読む
@@ -353,20 +357,15 @@ class SimParser
   # 入力全体をパーズして、@group, @relationを整える
   def parse
     parse_lines
-    # @group0から@groupを生成 (グループ名と変数名の配列をHashに変換)
+    # @group0から@groupを生成 (グループ名と変数名の配列をHashに変換) し、
+    # グループの入れ子を展開
     resolve_group
-    # @relationを整える ([1次式, op, 1次式, ...]においてグループの和を展開)
-    resolve_group_in_relation
-    # @ui2を整える (変数名集合でのグループ名の展開)
-    resolve_group_in_ui
   end
-
-  # !! 変数名集合は新規にグループ名を割り当てて、パーズが終わったらそ
-  # のグループの変数集合を解決し、後で変数名集合を展開するときは、グルー
-  # プ名として展開すれば、個別のresolveをしなくて済む。
   
   # パーズ後に@group0から@groupを生成 (グループ名と変数名の配列をHashに変換)
+  # その後、グループの入れ子を処理 (変数名集合で発生)
   def resolve_group
+    # GORUPセクションの処理
     grp = nil
     @group0.flatten.each {|x|
       if ! grp && GROUPre !~ x then
@@ -381,54 +380,26 @@ class SimParser
         raise ParseError # これはこれでいいか
       end
     }
-  end # of resolve_group
-
-  # パーズ後に@relationを整える ([1次式, op, 1次式, ...]においてグループの和を展開)
-  def resolve_group_in_relation
-    @relation.each {|line|
-      0.step(line.size-1, 2) {|i|
-        h = line[i]
-        h.keys.each {|k|
-          if k =~ GROUPSUMre then
-            kk = k[0..-5]
-            @group[kk].each {|k1| h[k1] += h[k] }
-            h.delete(k)
-          end
-        }
-      }
-    }
-  end # of resolve_group_in_relation
-
-  # @ui2を整える (変数名集合でのグループ名の展開)
-  # @ui2の要素は、UI指定なら要素数3以上で、
-  # (0開始で) 第2成分が '' か '*' なら範囲有り、違えば範囲なし (以下参照)
-  # |  ['(', @rngp, '..', @rngp, ')', /\*?/, @varuip,
-  # |   ['?', '->', @intuip, @varuip, ['*', ',', @intuip, @varuip]]],
-  # |  [@varuip,
-  # |   '->', @intuip, @varuip, ['*', ',', @intuip, @varuip]],
-  # つまり、範囲有りなら0開始で、第3, 5,...成分、範囲なしなら、第0, 2,...成分が@varuip
-  # @varuipは、
-  # 変数名、グループ名、または、変数名集合なら変数名とグループ名からなるArray
-
-  def resolve_group_in_ui
-    @ui2.each {|line|
-      next if line.size < 3
-      i = (line[2] == '' || line[2] == '*') ? 3 : 0 # @varuipの最初の位置
-      while i < line.size
-        if line[i].kind_of?(String) && GROUPre =~ line[i] then # グループ名
-          line[i] = @group[line[i]]
-        elsif line[i].kind_of?(Array) then # 変数名集合
-          line[i].size.times {|j|
-            if GROUPre =~ line[i][j] then # 変数名集合の中のグループ名
-              line[i][j] = @group[line[i][j]] # とりあえずArrayを埋める
-            end
+    # 入れ子の処理
+    h = {}
+    while ! @group.empty?
+      cnt = @group.size
+      @group.each {|grp, ary|
+        if ary.all? {|x| x[0] != '{' } then
+          @group.delete(grp)
+          h[grp] = ary.uniq
+          @group.keys.each {|grp2|
+            ary2 = @group[grp2].uniq
+            i = ary2.index(grp)
+            @group[grp2] = ary2[0...i] + ary + ary2[i+1..-1] if i
           }
-          line[i] = line[i].flatten
+          break
         end
-        i += 2
-      end
-    }
-  end # of resolve_group_in_ui
+      }
+      raise 'recursive group' if cnt == @group.size
+    end
+    @group = h
+  end # of resolve_group
 
   # 入力全体をパーズ
   def parse_lines
@@ -456,7 +427,7 @@ class SimParser
   end
 end # of class SimParser
 
-#### GLPKソース生成
+#### html生成
 # SimParserので収集したのは以下
 # @meta     ['title', タイトル]
 # @group    グループ名=>[変数名]
@@ -468,15 +439,43 @@ end # of class SimParser
 # @details  [フラグ, 変数名]か列見出し等
 # @var      変数名=>GLPK変数名
 #
-# これらを元に以下をGenGLPKで設定する。
+# これらを元に以下をGenHTMLで設定する。
 # @maximize	Array。@queryから確定
-# @subj		Array。@relationと@unlockから確定。@ui2からは何も登録されない。
-# @bounds	GLPK変数名=>[最小, 最大]。@varと@unlockからすべてのkeyは作っておいて、
-#		@ui2で確定するものは更新する。確定しないものは実行時に更新。
+# @subj		Array。@relationと@unlockから確定。
+#		@ui2からは何も登録されず、実行時に追加される。
 # @generals	Array。@varと@unlockから確定
-# @induce	寄与先GLPK変数名=>1次式のGLPK文字列。@ui2で確定するもののみ文字列化。
-#		確定しないものは実行時に追加される。キーが実行時に追加される可能性有。
-#		実行時に更新された後、「Subject to」へ送られる。
+# 以上はhtmlファイルに記録される。
+# @ui2の情報は、すべてhtmlに書き込まれ、実行時にSubject toに追記される
+# Boundsはすべて実行時に生成。Binaryは使わない。
+
+# class GenHTML
+#   attr_accessor :psr, :maximize, :subj, :maximize, :generals
+#   def initialize(psr)
+#     @psr = psr # SimParser (not Parser)
+#     @maximize = ['Maximize']
+#     @subj = []
+#     @generals = ['Generals']
+#   end # of initialize
+
+#   # htmlを生成
+#   def gen_html
+#   end # of gen_html
+
+#   # glpkのデータを整える
+#   def setup_glpk
+#     # query -> @maximize
+#     v = @psr.var[@psr.query[0][3]]
+#     @maximize.push v
+#     # unlock, var -> @subj
+#     # generals
+
+    
+#   end
+
+
+  
+# end # of class GenHTML
+
 
 class GenGLPK
   attr_accessor :maximize, :subj, :bounds, :generals, :induce
@@ -832,20 +831,20 @@ if $0 == __FILE__ then
 #   $stderr.puts psr.ui.inspect
 #   $stderr.puts 'UI2', pp(psr.ui2)
 #   $stderr.puts psr.query.inspect
-#   $stderr.puts 'RELATION', pp(psr.relation)
-#    $stderr.puts psr.induce.inspect
+   $stderr.puts '@group', pp(psr.group)
+   $stderr.puts 'RELATION', pp(psr.relation)
 #   p psr.unlock
 #   $stderr.puts psr.summary.inspect
 #   $stderr.puts psr.details.inspect
 # $stderr.puts 'GROUP', pp(psr.group)
 #    $stderr.puts 'var', pp(psr.var)
-#   glpk = GenGLPK.new(psr)
-#   glpk.gen_glpk
-#   $stderr.puts 'maximize', pp(glpk.maximize)
-#   $stderr.puts 'subj', pp(glpk.subj)
-#   $stderr.puts 'bounds', pp(glpk.bounds)
-#   $stderr.puts 'generals', pp(glpk.generals)
-#   $stderr.puts 'induce', pp(glpk.induce)
+   # glpk = GenGLPK.new(psr)
+   # glpk.gen_glpk
+   # $stderr.puts 'maximize', pp(glpk.maximize)
+   # $stderr.puts 'subj', pp(glpk.subj)
+   # $stderr.puts 'bounds', pp(glpk.bounds)
+   # $stderr.puts 'generals', pp(glpk.generals)
+   # $stderr.puts 'induce', pp(glpk.induce)
 #
-  puts GenHTML.gen_html(psr)
+#  puts GenHTML.gen_html(psr)
 end
