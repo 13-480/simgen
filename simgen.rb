@@ -158,10 +158,8 @@ class SimParser
   attr_accessor :meta           # ['title', タイトル]
   attr_accessor :group          # グループ名=>[変数名]
   attr_accessor :ui             # [下限, 上限, '*', 変数名] か ['br'] 等
-  attr_accessor :ui2            #
   attr_accessor :query          # [ボタンテキスト, 中止, 追加, 変数名]
   attr_accessor :relation       # [1次式, op, 1次式, ...]
-  attr_accessor :induce         # [変数名, 変数名1, 数値1,...]
   attr_accessor :unlock         # [変数名1, 数値a, 変数名2, 数値b, 数値c]
   attr_accessor :summary        # [フラグ, 変数名]か列見出し等
   attr_accessor :details        # [フラグ, 変数名]か列見出し等
@@ -173,7 +171,6 @@ class SimParser
     # 結果を保存する配列 (@group0は後に@groupに変換)
     @meta, @group0, @ui, @query, @relation = [], [], [], [], []
     @unlock, @summary, @details = [], [], []
-    @ui2 = []
     # 変数名=>GLPK変数のHash
     @var = {}
     # グループ名=>[変数名]のHash
@@ -188,8 +185,8 @@ class SimParser
     # 文法 (SimParse#parse 参照)
     # [セクションタグ, 蓄積する配列, パターン, パターン, ...] (パターンのどれかにマッチ)
     @sec = [
-      # UI2 の最後の2つは、範囲有りなら (0開始で) 第2成分が '' か '*' になることで判断
-      ['<UI2>', @ui2,
+      # UI の最後の2つは、範囲有りなら (0開始で) 第2成分が '' か '*' になることで判断
+      ['<UI>', @ui,
         [/br|space|width:\d+px|nowidth/],
         [/subsection/, STRre0],
         ['(', @rngp, '..', @rngp, ')', /\*?/, @varuip,
@@ -431,7 +428,7 @@ end # of class SimParser
 # SimParserので収集したのは以下
 # @meta     ['title', タイトル]
 # @group    グループ名=>[変数名]
-# @ui2      [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
+# @ui      [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
 # @query    [ボタンテキスト, 中止, 追加, 変数名]
 # @relation [1次式, op, 1次式, ...]
 # @unlock   [変数名1, 数値a, 変数名2, 数値b, 数値c]
@@ -445,106 +442,87 @@ end # of class SimParser
 #		@ui2からは何も登録されず、実行時に追加される。
 # @generals	Array。@varと@unlockから確定
 # 以上はhtmlファイルに記録される。
-# @ui2の情報は、すべてhtmlに書き込まれ、実行時にSubject toに追記される
+# @uiの情報は、すべてhtmlに書き込まれ、実行時にSubject toに追記される
 # Boundsはすべて実行時に生成。Binaryは使わない。
 
-# class GenHTML
-#   attr_accessor :psr, :maximize, :subj, :maximize, :generals
-#   def initialize(psr)
-#     @psr = psr # SimParser (not Parser)
-#     @maximize = ['Maximize']
-#     @subj = []
-#     @generals = ['Generals']
-#   end # of initialize
-
-#   # htmlを生成
-#   def gen_html
-#   end # of gen_html
-
-#   # glpkのデータを整える
-#   def setup_glpk
-#     # query -> @maximize
-#     v = @psr.var[@psr.query[0][3]]
-#     @maximize.push v
-#     # unlock, var -> @subj
-#     # generals
-
-    
-#   end
-
-
-  
-# end # of class GenHTML
-
-
-class GenGLPK
-  attr_accessor :maximize, :subj, :bounds, :generals, :induce
+class GenHTML
+  attr_accessor :psr, :maximize, :subj, :maximize, :generals
   def initialize(psr)
     @psr = psr # SimParser (not Parser)
     @maximize = ['Maximize']
-    @subj = []
-    @bounds = Hash.new {|h, k| h[k] = [-Float::INFINITY, Float::INFINITY] }
+    @subj = ['Subject to']
     @generals = ['Generals']
-    @induce = Hash.new {|h, k| h[k] = '' }
-    # !! ソース末尾にENDも必要?
-  end
-  # GLPKソースやその元を生成し、@maximize, @subj, @bounds, @generals, @induceに設定
-  # 「Subject To」と「Bounds」は実行時まで確定しない。
-  def gen_glpk
-    # query -> maximize
+  end # of initialize
+
+  # htmlを生成して配列で返す
+  def gen_html
+    @@ui_width = nil # UI部品の幅
+    res = []
+    # @maximize, @subj, @generalsを確定させる
+    setup_glpk
+    # ヘッダ
+    res.push(gen_html_head)
+    # UI
+    res.push(gen_html_ui) # !!!! 後回し
+    # 検索ボタン
+    res.push(gen_html_btn)
+    # GLPKログ
+    res.push(gen_html_glpklog)
+    # 結果ペイン
+    res.push('<!-- 検索結果 -->', '<div id=resultpane>', '</div>')
+    # GenGLPKで生成するデータ
+    res.push(gen_html_glpk_data)
+    # SUMMARYセクションのデータ
+    res.push(gen_html_summary)
+    # DETAILSセクションのデータ
+    res.push(gen_html_details)
+    # GLPK変数=>変数名の辞書
+    res.push(gen_html_var)
+    # フッタ
+    res.push('</body>', '</html>')
+    res
+  end # of gen_html
+
+  # glpkのデータを整える
+  def setup_glpk
+    # query -> @maximize
     v = @psr.var[@psr.query[0][3]]
     @maximize.push v
-    #
-    self.do_ui		# ui2 -> bounds, induce # !! 中身まだ
-    self.do_relation	# relation -> subj
-    self.do_unlock    	# unlock -> var, subj (varの処理より先にやること)
-    self.do_var    	# var -> generals, bounds (unlockの処理より後にやること)
-  end # of gen_glpk
 
-  # UIセクションの範囲指定の確定分だけ@boundsに登録。残りは実行時。
-  # 寄与指定のうち確定分は@indeceに登録。残りは実行時。
-  # UIの要素は [下限, 上限, '*', 変数名, 値1, 変数名1,...]  か幅指定等
-  # (始めの3つと値1以降は、一方だけなら省略可能)
-  # 上限・下限や値は、定数はInteger、プルダウンはArray、チェックボックスはSymbol、
-  # テキストボックスはString、ないならnil。
-  # 変数名は、変数名・グループ名はString、プルダウンはArray。
-  def do_ui
-    # 範囲を調べて@boundsへ登録
-    @psr.ui2.each {|x|
-      next if x.size < 3 # UI部品以外は無視
-      next if x[2] != '' && x[2] != '*' # 範囲省略も無視
-      next if !x[3].kind_of?(String) || VARre !~ x[3] # 変数が確定でなければ無視
-      if x[0].kind_of?(Integer) then
-        @bounds[@psr.var[x[3]]][0] = [@bounds[@psr.var[x[3]]][0], x[0]].max
-      end
-      if x[1].kind_of?(Integer) then
-        @bounds[@psr.var[x[3]]][1] = [@bounds[@psr.var[x[3]]][1], x[1]].min
-      end
+    # unlock -> @subj。補助変数は@psr.varに新規に登録
+    @psr.unlock.each {|x| # x は [変数名1, 数値a, 変数名2, 数値b, 数値c]
+      next if x.size != 5 # 上限解放指定以外は無視 (今はないけど)
+      vv = x[0] + ':' + x[2]
+      @psr.register_var(vv) # 補助変数
+      w = @psr.var[vv]
+      v1, a, v2, b, c = @psr.var[x[0]], x[1], @psr.var[x[2]], x[3], x[4]
+      @subj.push [v2, '%+d'%(b-c), w, '<=', b].join(' ')
+      @subj.push [v1, '%+d'%(-a), w, '>= 0'].join(' ')
     }
-    # 寄与を調べて@induceへ登録
-    @psr.ui2.each {|x|
-      next if x.size < 3 # UI部品以外は無視
-      x = x[3..-1] if x[2] == '' || x[2] == '*' # 範囲部分は捨てる
-      next if x.size  <= 1 # 寄与のないものは無視
-      next unless x[0].kind_of?(String) && VARre =~ x[0] # 寄与元未確定は無視
-      x[1..-1].each_slice(2) {|c, v|
-        next unless v.kind_of?(String) && VARre =~ v # 寄与先未確定は無視
-        @induce[@psr.var[v]] += '%+d %s' % [c, @psr.var[x[0]]]
-      }
-    }
-  end # of do_ui
 
-  # RELATIONセクションを@subjに登録
-  # RELATIONの要素は [1次式, op, 1次式, ...]
-  def do_relation
-    @psr.relation.each {|f|
+    # relation -> @subj
+    @psr.relation.each {|f| # f は [1次式, op, 1次式, ...]
       f = f.dup
+      # sumを展開
+      0.step(f.size-1, 2) {|i|
+        h = f[i]
+        h.keys.each {|k|
+          if k[0] == GROUPSUMre then
+            kk = k[0..-5]
+            @group[kk].each {|k1| h[k1] += h[k] }
+            h.delete(k)
+          end
+        }
+      }
       while f.size >= 3 # 等式・不等式以外は無視
         @subj.push(self.simplify(*f[0..2]))
         f = f[2..-1]
       end
     }
-  end # of do_relation
+
+    # var -> @generals
+    @generals.push(@psr.var.values.each_slice(17).map {|x| x.join(' ') })
+  end
 
   # 1次式2つを、定数項は右辺へ他は左辺へ移項して、等式・不等式を作る
   def simplify(f1, op, f2)
@@ -557,69 +535,9 @@ class GenGLPK
     [lhs.map {|k, v| '%+d %s' % [v, @psr.var[k]] }, op, rhs].flatten.join(' ')
   end # of simplify
 
-  # UNLOCKセクションを@subjに登録、補助変数は@psr.varに新規に登録
-  # 変数名1、2は@boundsに登録しなくて良いだろうし、補助変数もよくわからないからしない
-  # UNLOCKの要素は [変数名1, 数値a, 変数名2, 数値b, 数値c]
-  def do_unlock
-    @psr.unlock.each {|x|
-      next if x.size != 5 # 上限解放指定以外は無視 (今はないけど)
-      vv = x[0] + ':' + x[2]
-      @psr.register_var(vv) # 補助変数
-      w = @psr.var[vv]
-      v1, a, v2, b, c = @psr.var[x[0]], x[1], @psr.var[x[2]], x[3], x[4]
-      @subj.push [v2, '%+d'%(b-c), w, '<=', b].join(' ')
-      @subj.push [v1, '%+d'%(-a), w, '>= 0'].join(' ')
-    }
-  end # of do_unlock
-
-  # @psr.varから @generalsと@boundsを設定
-  def do_var
-    # 変数の登録
-    @generals.push(@psr.var.values.each_slice(17).map {|x| x.join(' ') })
-    # 変数の範囲をとりあえず実数全体にしておく
-    @psr.var.each_value {|x| 
-      @bounds[x] = [-Float::INFINITY, Float::INFINITY] if ! @bounds.has_key?(x)
-    }
-  end # of do_var
-end # of class GenGLPK
-
-#### html生成
-module GenHTML
-  @@ui_width = nil # UI部品の幅
-  module_function
-
-  # htmlを生成して配列で返す
-  def gen_html(psr) # このpsrはSimParserのインスタンス (not Parser)
-    @@ui_width = nil # UI部品の幅
-    res = []
-    # ヘッダ
-    res.push(gen_html_head(psr))
-    # UI
-    res.push(gen_html_ui(psr)) # !!!! 後回し
-    # 検索ボタン
-    res.push(gen_html_btn(psr))
-    # GLPKログ
-    res.push(gen_html_glpklog(psr))
-    # 結果ペイン
-    res.push('<!-- 検索結果 -->', '<div id=resultpane>', '</div>')
-    # GenGLPKで生成するデータ
-    res.push(gen_html_glpk_data(psr))
-    # SUMMARYセクションのデータ
-    res.push(gen_html_summary(psr))
-    # DETAILSセクションのデータ
-    res.push(gen_html_details(psr))
-    # GLPK変数の範囲最大の条件。 なくなる
-    # res.push(gen_html_fullrange(psr))
-    # GLPK変数=>変数名の辞書
-    res.push(gen_html_var(psr))
-    # フッタ
-    res.push('</body>', '</html>')
-    res
-  end
-
   # ヘッダ
-  def gen_html_head(psr)
-    title = psr.meta.assoc('title')
+  def gen_html_head
+    title = @psr.meta.assoc('title')
     title = title ? title[1] : 'タイトル'
     str = <<EOS % [title, title]
 <!DOCTYPE html>
@@ -639,17 +557,17 @@ EOS
     str
   end
 
-  # UI !!!! ここは後回し !! fullrange の[rangestar]クラスも付加すべき
+    # UI !!!! ここは後回し !! fullrange の[rangestar]クラスも付加すべき
   # glpk.ui2は、
   # [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
   # 最初の3つは省略可能。
   # 上限・下限や値は、定数はInteger、プルダウンはArray、チェックボックスは:checkbox、
   # テキストボックスはString、ないなら:none。
   # 変数名は、変数名・グループ名はString、プルダウンはArray。
-  def gen_html_ui(psr)
+  def gen_html_ui
     res = ['<!-- UI -->']
     inDetails = false
-    psr.ui.each {|x| # [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]
+    @psr.ui.each {|x| # [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]
       if x.kind_of?(Array) && x.size < 3 then
         case x[0]
         when 'br' # 改行
@@ -684,8 +602,8 @@ EOS
 
         
         a, b, s, v = x
-        aa = (a!=:none) && rng_html(psr, a, v+':min')
-        bb = (b!=:none)  && rng_html(psr, b, v+':max')
+        aa = (a!=:none) && rng_html(@psr, a, v+':min')
+        bb = (b!=:none)  && rng_html(@psr, b, v+':max')
         if (aa || bb) then
           st = ' style="display:inline-block;%s"' % @@ui_width
           res.push('<span %s>' % st) if @@ui_width
@@ -700,7 +618,7 @@ EOS
     res
   end
 
-  # 変えたけど大丈夫か
+    # 変えたけど大丈夫か
   def gen_html_ui_rng(a)
     case a
     when :none # 無指定でもプレースホルダ
@@ -720,11 +638,12 @@ EOS
     end
   end
 
-  # 検索ボタン
+
+    # 検索ボタン
   BTN1 = '<button id=querybtn onclick="doQueryBtn()" run="%s" stop="%s" add="%s">%s</button>'
   BTN2 = '<button onclick="clearResult()">検索結果の全消去</button>'
-  def gen_html_btn(psr)
-    run, stop, add, v = psr.query[0] # 1個と信じる
+  def gen_html_btn
+    run, stop, add, v = @psr.query[0] # 1個と信じる
     [ '<hr>',
       '<!-- 検索ボタン -->',
       BTN1 % [run, stop, add, run],
@@ -733,19 +652,16 @@ EOS
   end
 
   # GLPKログの表示域
-  def gen_html_glpklog(psr)
-    showhide = psr.meta.assoc('glpk')
+  def gen_html_glpklog
+    showhide = @psr.meta.assoc('glpk')
     showhide = (showhide && showhide[1]=='show') ? 'block' : 'none'
     ['<!-- GLPKログ -->',
       '<textarea id=glpklog cols=150 rows=5 style="display:%s">' % showhide,
       '</textarea>']
   end
 
-  # GenGLPKで生成したデータ
-  def gen_html_glpk_data(psr)
-    glpk = GenGLPK.new(psr)
-    glpk.gen_glpk
-    #
+  # GenGLPKで生成したデータ !! 変更あるだろな
+  def gen_html_glpk_data
     res = []
     res.push('<script>')
     # maximize, subj, generalsはArrayなので単に保存
@@ -763,7 +679,7 @@ EOS
   # SUMMARYセクションのデータ
   # psr.summaryの要素は、[フラグ, 変数名] か nowidth等
   # 出力のsummaryは、Stringならnowidth等、配列なら[フラグ, GLPK変数名]
-  def gen_html_summary(psr)
+  def gen_html_summary
     res = ['<script>', 'var summary = [']
     psr.summary.each {|x|
       if x.size <= 1 then # nowidth等
@@ -780,7 +696,7 @@ EOS
   # DETAILSセクションのデータ
   # psr.detailsの要素は、[フラグ, 変数名] か 列見出し等
   # 出力のdetailsは、Stringなら見出しやnowidth等、配列なら[フラグ, GLPK変数名]
-  def gen_html_details(psr)
+  def gen_html_details
     res = ['<script>', 'var details = [']
     psr.details.each {|x|
       if x.size <= 1 then # nowidth等
@@ -796,31 +712,15 @@ EOS
     res.push('];', '</script>')
   end
 
-  # これ消える。プルダウンとかを生成するときに、「rangestar」クラスとかを
-  # 指定しておき、実行時に範囲指定が狭まっているかどうか判断するしかないか。
-  def gen_html_fullrange(psr)
-    res = ['<script>', 'var fullrange = {']
-    # Integer (定数)、Array (プルダウン)、String (テキストボックス)、
-    # nil (なし)
-    psr.ui.each {|x|
-      next unless x.kind_of?(Array) && x[2] == '*'
-      res1 = [] # 上限・下限はプルダウンだけ対象
-      res1.push(psr.var[x[3]+':min'], x[0].min) if x[0].kind_of?(Array)
-      res1.push(psr.var[x[3]+':max'], x[1].max) if x[1].kind_of?(Array)
-      res.push(psr.var[x[3]] + ':' + res1.inspect + ',') if ! res1.empty?
-    }
-    res.push('};', '</script>')
-  end
-
-  # GLPK変数=>変数名の辞書
-  def gen_html_var(psr)
+    # GLPK変数=>変数名の辞書
+  def gen_html_var
     res = ['<script>', 'var vname = {']
-    psr.var.each_slice(5) {|x|
+    @psr.var.each_slice(5) {|x|
       res.push x.map {|k,v| "#{v}:'#{k}'," }.join(' ') }
     res[-1][-2..-1] == ''
     res.push('};', '</script>')
   end
-end # of module GenHTML
+end # of class GenHTML
 
 # 直に呼ばれたらARGFからソースを読み、htmlを出力する
 if $0 == __FILE__ then
@@ -828,8 +728,7 @@ if $0 == __FILE__ then
   psr = SimParser.new(lines)
   psr.parse
 #   p psr.meta
-#   $stderr.puts psr.ui.inspect
-#   $stderr.puts 'UI2', pp(psr.ui2)
+   $stderr.puts 'UI', pp(psr.ui)
 #   $stderr.puts psr.query.inspect
    $stderr.puts '@group', pp(psr.group)
    $stderr.puts 'RELATION', pp(psr.relation)
