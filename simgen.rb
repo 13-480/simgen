@@ -456,14 +456,14 @@ class GenHTML
 
   # htmlを生成して配列で返す
   def gen_html
-    @@ui_width = nil # UI部品の幅
+    @ui_width = nil # UI部品の幅
     res = []
     # @maximize, @subj, @generalsを確定させる
     setup_glpk
     # ヘッダ
     res.push(gen_html_head)
     # UI
-    res.push(gen_html_ui) # !!!! 後回し
+    res.push(gen_html_ui)
     # 検索ボタン
     res.push(gen_html_btn)
     # GLPKログ
@@ -507,9 +507,9 @@ class GenHTML
       0.step(f.size-1, 2) {|i|
         h = f[i]
         h.keys.each {|k|
-          if k[0] == GROUPSUMre then
+          if GROUPSUMre =~ k then
             kk = k[0..-5]
-            @group[kk].each {|k1| h[k1] += h[k] }
+            @psr.group[kk].each {|k1| h[k1] += h[k] }
             h.delete(k)
           end
         }
@@ -557,7 +557,7 @@ EOS
     str
   end
 
-    # UI !!!! ここは後回し !! fullrange の[rangestar]クラスも付加すべき
+  # UI !!!! ここは後回し !! fullrange の[rangestar]クラスも付加すべき
   # glpk.ui2は、
   # [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
   # 最初の3つは省略可能。
@@ -568,19 +568,21 @@ EOS
     res = ['<!-- UI -->']
     inDetails = false
     @psr.ui.each {|x| # [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]
-      if x.kind_of?(Array) && x.size < 3 then
+      if x.kind_of?(Array) && x.size >= 3 then
+        res.push gen_html_ui_elt(x) #UI部品
+      else # 幅指定等
         case x[0]
         when 'br' # 改行
           res.push('<br>')
         when 'space' # スペース (幅指定時のみ有効)
-          if @@ui_width then
-            res.push('<span style="display:inline-block;%s">' % @@ui_width,
+          if @ui_width then
+            res.push('<span style="display:inline-block;%s">' % @ui_width,
                 '</span>')
           end
         when 'nowidth' # UI部品の幅指定解除
-          @@ui_width = nil
+          @ui_width = nil
         when /^width:\d+px/  # UI部品の幅
-          @@ui_width = x[0]
+          @ui_width = x[0]
         when 'subsection' # details要素に入れる
           res.push('</details>') if inDetails # 前回のを閉じる
           res.push('<details open=true>', '<summary>%s</h3></summary>' % x[1])
@@ -588,38 +590,49 @@ EOS
         else # そのまま垂れ流し !! エスケープ必要 !! これ現状はありえないことになってる
           res.push(x[0])
         end
-      else # プルダウン他
-        line = []
-        existui = false
-        rangestar = false
-        x = [:none, :none, '', *x] if x[2] != '' && x[2] != '*' # 範囲なしは補う
-        existui |= (x[0] != none && !x[0].kind_of?(Integer))
-        res.push gen_html_ui_rng(x[0])
-        existui |= (x[1] != none && !x[1].kind_of?(Integer))
-        res.push gen_html_ui_rng(x[1])
-        rangestar = (x[2] == '*')
-          
-
-        
-        a, b, s, v = x
-        aa = (a!=:none) && rng_html(@psr, a, v+':min')
-        bb = (b!=:none)  && rng_html(@psr, b, v+':max')
-        if (aa || bb) then
-          st = ' style="display:inline-block;%s"' % @@ui_width
-          res.push('<span %s>' % st) if @@ui_width
-          res.push aa if aa
-          res.push bb if bb
-          res.push v
-          res.push('</span>')  if @@ui_width
-        end
       end
     }
-    res.push('</details>') if inDetails
     res
   end
 
-    # 変えたけど大丈夫か
-  def gen_html_ui_rng(a)
+  # gen_html_uiの下請けで、UI部品をArrayで返す
+  # x は [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]
+  def gen_html_ui_elt(x)
+    line = []
+    x = [:none, :none, '', *x] if x[2] != '' && x[2] != '*' # 範囲なしは補う
+    # UI部品の有無を調べる
+    ui_elt = false
+    ui_elt |= (x[0] != :none && ! x[0].kind_of?(Integer))
+    ui_elt |= (x[1] != :none && ! x[1].kind_of?(Integer))
+    3.step(x.size-1, 2) {|i| ui_elt |= (x[i][0] == '{') }
+    4.step(x.size-1, 2) {|i|
+      ui_elt |= x[i] != :none && ! x[i].kind_of?(Integer) }
+    # spanでくるむ
+    if ! ui_elt then
+      line.push '<span  class=ui style="display:none">'
+    elsif @ui_width then
+      line.push '<span class=ui style="display:inline-block;%s">' % @ui_width
+    else
+      line.push '<span class=ui>'
+    end
+    # 下限、上限
+    line.push gen_html_ui_num(x[0])
+    line.push gen_html_ui_num(x[1])
+    # フラグ
+    line.push '<span v="%s"></span>' % x[2]
+    # 寄与元変数
+    line.push gen_html_ui_varui(x[3], ui_elt)
+    # 寄与先
+    x[4...x.size].each_slice(2) {|val, var|
+      line.push gen_html_ui_num(val)
+      line.push gen_html_ui_varui(var, !val.kind_of?(Integer))
+    }
+    line.push '</span>'      
+    line
+  end
+
+  # 数値の定数やプルダウン等をArrayで返す
+  def gen_html_ui_num(a)
     case a
     when :none # 無指定でもプレースホルダ
       '<span v=""></span>'
@@ -631,15 +644,29 @@ EOS
       '<input type=checkbox>'
     when Array
       [ '<select>',
-        a.map {|x| '<option value="%s">%s</option>' % x },
+        a.map {|x| '<option value="%s">%s</option>' % [x, x] },
         '</select>' ]
     else
-      raise 'bad range'
+      raise 'bad num'
     end
   end
 
+  #
+  def gen_html_ui_varui(v, visible = false)
+    line = []
+    if v[0] != '{' then # 変数名
+      text = visible ? v : ''
+      line.push '<span v=%s>%s</span>' % [v, text]
+    else # グループ名
+      line.push '<select>'
+      @psr.group[v].map {|x|
+        line.push '<option value="%s">%s</option>' % [x, x] }
+      line.push '</select>'
+    end
+    line
+  end
 
-    # 検索ボタン
+  # 検索ボタン
   BTN1 = '<button id=querybtn onclick="doQueryBtn()" run="%s" stop="%s" add="%s">%s</button>'
   BTN2 = '<button onclick="clearResult()">検索結果の全消去</button>'
   def gen_html_btn
@@ -660,59 +687,54 @@ EOS
       '</textarea>']
   end
 
-  # GenGLPKで生成したデータ !! 変更あるだろな
+  # GenGLPKで生成したデータ
   def gen_html_glpk_data
     res = []
     res.push('<script>')
     # maximize, subj, generalsはArrayなので単に保存
-    res.push('var glpkmaximize = `', glpk.maximize, '`;')
-    res.push('var glpksubj = `', glpk.subj, '`;')
-    res.push('var glpkgenerals = `', glpk.generals, '`;')
-    # bounds はGLPK変数=>[最大,最小]
-    res.push('var glpkbounds = {')
-    glpk.bounds.each {|k, v| res.push("#{k}:#{v},") }
-    res[-1][-2..-1] == ''
-    res.push('};')
+    res.push('var glpkmaximize = `', @maximize, '`;')
+    res.push('var glpksubj = `', @subj, '`;')
+    res.push('var glpkgenerals = `', @generals, '`;')
     res.push('</script>')
   end
 
   # SUMMARYセクションのデータ
-  # psr.summaryの要素は、[フラグ, 変数名] か nowidth等
+  # @psr.summaryの要素は、[フラグ, 変数名] か nowidth等
   # 出力のsummaryは、Stringならnowidth等、配列なら[フラグ, GLPK変数名]
   def gen_html_summary
     res = ['<script>', 'var summary = [']
-    psr.summary.each {|x|
+    @psr.summary.each {|x|
       if x.size <= 1 then # nowidth等
         res.push("'#{x[0]}',")
-      elsif GROUPre =~ x[1] then # グループ # !! 変数名集合もやるべき
-        psr.group[x[1]].each {|v| res.push("['#{x[0]}', '#{psr.var[v]}']," ) }
+      elsif GROUPre =~ x[1] then # グループ
+        @psr.group[x[1]].each {|v| res.push("['#{x[0]}', '#{@psr.var[v]}'],") }
       else # 変数
-        res.push("['#{x[0]}', '#{psr.var[x[1]]}']," )
+        res.push("['#{x[0]}', '#{@psr.var[x[1]]}']," )
       end
     }
     res.push('];', '</script>')
   end
 
   # DETAILSセクションのデータ
-  # psr.detailsの要素は、[フラグ, 変数名] か 列見出し等
+  # @psr.detailsの要素は、[フラグ, 変数名] か 列見出し等
   # 出力のdetailsは、Stringなら見出しやnowidth等、配列なら[フラグ, GLPK変数名]
   def gen_html_details
     res = ['<script>', 'var details = [']
-    psr.details.each {|x|
+    @psr.details.each {|x|
       if x.size <= 1 then # nowidth等
-        res.push("'#{x[0].trip}',")
+        res.push("'#{x[0].strip}',")
       elsif x[0] == 'newcolumn' then # newcolumn
         res.push("'newcolumn',", "'#{x[1].strip}',")
-        elsif GROUPre =~ x[1] then # グループ # !! 変数名集合もやるべき
-        psr.group[x[1]].each {|v| res.push("['#{x[0]}', '#{psr.var[v]}']," ) }
+      elsif GROUPre =~ x[1] then # グループ
+        @psr.group[x[1]].each {|v| res.push("['#{x[0]}', '#{@psr.var[v]}'],") }
       else # 変数
-        res.push("['#{x[0]}', '#{psr.var[x[1]]}']," )
+        res.push("['#{x[0]}', '#{@psr.var[x[1]]}']," )
       end
     }
     res.push('];', '</script>')
   end
 
-    # GLPK変数=>変数名の辞書
+  # GLPK変数=>変数名の辞書
   def gen_html_var
     res = ['<script>', 'var vname = {']
     @psr.var.each_slice(5) {|x|
@@ -744,6 +766,7 @@ if $0 == __FILE__ then
    # $stderr.puts 'bounds', pp(glpk.bounds)
    # $stderr.puts 'generals', pp(glpk.generals)
    # $stderr.puts 'induce', pp(glpk.induce)
-#
-#  puts GenHTML.gen_html(psr)
+   #
+   gh = GenHTML.new(psr)
+   puts gh.gen_html
 end
