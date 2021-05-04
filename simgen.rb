@@ -243,6 +243,10 @@ class SimParser
     [v, line]
   end
 
+
+  # !! parse_varset (変数名集合のパーズ) もあった方がよいあ
+  # !! parse_vargroup (グループ名のパーズ) もあった方がよいあ
+
   # 入力から変数名かグループ名か変数名集合を読む。
   # 変数名ならGLPK変数に登録して変数名を返し、
   # 変数名、グループ名、または、変数名集合なら変数名とグループ名からなるArrayを返す。
@@ -357,6 +361,10 @@ class SimParser
     resolve_group_in_ui
   end
 
+  # !! 変数名集合は新規にグループ名を割り当てて、パーズが終わったらそ
+  # のグループの変数集合を解決し、後で変数名集合を展開するときは、グルー
+  # プ名として展開すれば、個別のresolveをしなくて済む。
+  
   # パーズ後に@group0から@groupを生成 (グループ名と変数名の配列をHashに変換)
   def resolve_group
     grp = nil
@@ -452,7 +460,7 @@ end # of class SimParser
 # SimParserので収集したのは以下
 # @meta     ['title', タイトル]
 # @group    グループ名=>[変数名]
-# @ui2      [最小値, 最大値, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
+# @ui2      [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
 # @query    [ボタンテキスト, 中止, 追加, 変数名]
 # @relation [1次式, op, 1次式, ...]
 # @unlock   [変数名1, 数値a, 変数名2, 数値b, 数値c]
@@ -588,21 +596,21 @@ module GenHTML
     # ヘッダ
     res.push(gen_html_head(psr))
     # UI
-    res.push(gen_html_ui(psr))
+    res.push(gen_html_ui(psr)) # !!!! 後回し
     # 検索ボタン
     res.push(gen_html_btn(psr))
     # GLPKログ
     res.push(gen_html_glpklog(psr))
     # 結果ペイン
     res.push('<!-- 検索結果 -->', '<div id=resultpane>', '</div>')
-    # GLPKソースの確定している部分
-    res.push(gen_html_glpk(psr))
+    # GenGLPKで生成するデータ
+    res.push(gen_html_glpk_data(psr))
     # SUMMARYセクションのデータ
     res.push(gen_html_summary(psr))
     # DETAILSセクションのデータ
     res.push(gen_html_details(psr))
-    # GLPK変数の範囲最大の条件
-    res.push(gen_html_fullrange(psr))
+    # GLPK変数の範囲最大の条件。 なくなる
+    # res.push(gen_html_fullrange(psr))
     # GLPK変数=>変数名の辞書
     res.push(gen_html_var(psr))
     # フッタ
@@ -632,12 +640,18 @@ EOS
     str
   end
 
-  # UI
+  # UI !!!! ここは後回し !! fullrange の[rangestar]クラスも付加すべき
+  # glpk.ui2は、
+  # [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
+  # 最初の3つは省略可能。
+  # 上限・下限や値は、定数はInteger、プルダウンはArray、チェックボックスは:checkbox、
+  # テキストボックスはString、ないなら:none。
+  # 変数名は、変数名・グループ名はString、プルダウンはArray。
   def gen_html_ui(psr)
-    res = []
+    res = ['<!-- UI -->']
     inDetails = false
-    psr.ui.each {|x| # [下限, 上限, '*', 変数名] か ['br'] 等
-      if x.kind_of?(Array) && x.size < 4 then
+    psr.ui.each {|x| # [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]
+      if x.kind_of?(Array) && x.size < 3 then
         case x[0]
         when 'br' # 改行
           res.push('<br>')
@@ -654,10 +668,22 @@ EOS
           res.push('</details>') if inDetails # 前回のを閉じる
           res.push('<details open=true>', '<summary>%s</h3></summary>' % x[1])
           inDetails = true
-        else # そのまま垂れ流し !! エスケープ必要
+        else # そのまま垂れ流し !! エスケープ必要 !! これ現状はありえないことになってる
           res.push(x[0])
         end
       else # プルダウン他
+        line = []
+        existui = false
+        rangestar = false
+        x = [:none, :none, '', *x] if x[2] != '' && x[2] != '*' # 範囲なしは補う
+        existui |= (x[0] != none && !x[0].kind_of?(Integer))
+        res.push gen_html_ui_rng(x[0])
+        existui |= (x[1] != none && !x[1].kind_of?(Integer))
+        res.push gen_html_ui_rng(x[1])
+        rangestar = (x[2] == '*')
+          
+
+        
         a, b, s, v = x
         aa = (a!=:none) && rng_html(psr, a, v+':min')
         bb = (b!=:none)  && rng_html(psr, b, v+':max')
@@ -675,39 +701,33 @@ EOS
     res
   end
 
-  # UIの下請け。プルダウン等を生成
-  RNG_TEXTBOX = '<input type=text class=ui v="%s" value=%s style="width:25px">'
-  RNG_CHECKBOX = '<input type=checkbox class=ui v="%s">'
-  RNG_PULLDOWN1 = '<select class=ui v="%s">'
-  RNG_PULLDOWN2 = '<option value="%s">%s</option>'
-  RNG_PULLDOWN3 = '</select>'
-
-  def rng_html(psr, a, v)
+  # 変えたけど大丈夫か
+  def gen_html_ui_rng(a)
     case a
-    when Integer # 数値ならUIなし
-      nil
+    when :none # 無指定でもプレースホルダ
+      '<span v=""></span>'
+    when Integer # 数値
+      "<span v=#{a}></span>"
     when String # テキストボックス
-      psr.register_var(v)
-      RNG_TEXTBOX % [psr.var[v], a]
+      '<input type=text value=%s style="width:25px">' % a[0...-1]
     when :checkbox # チェックボックス
-      psr.register_var(v)
-      RNG_CHECKBOX % psr.var[v]
-    when Array # プルダウン
-      psr.register_var(v)
-      [ RNG_PULLDOWN1 % psr.var[v],
-        a.map {|x| RNG_PULLDOWN2 % [x, x] },
-        RNG_PULLDOWN3 ]
+      '<input type=checkbox>'
+    when Array
+      [ '<select>',
+        a.map {|x| '<option value="%s">%s</option>' % x },
+        '</select>' ]
     else
       raise 'bad range'
     end
   end
 
   # 検索ボタン
-  BTN1 = '<button id=querybtn onclick="doQueryBtn()" data-run="%s" data-stop="%s" data-add="%s">%s</button>'
+  BTN1 = '<button id=querybtn onclick="doQueryBtn()" run="%s" stop="%s" add="%s">%s</button>'
   BTN2 = '<button onclick="clearResult()">検索結果の全消去</button>'
   def gen_html_btn(psr)
     run, stop, add, v = psr.query[0] # 1個と信じる
     [ '<hr>',
+      '<!-- 検索ボタン -->',
       BTN1 % [run, stop, add, run],
       BTN2,
       '<hr>' ]
@@ -722,21 +742,26 @@ EOS
       '</textarea>']
   end
 
-  # GLPKソースの確定している部分
-  def gen_html_glpk(psr)
+  # GenGLPKで生成したデータ
+  def gen_html_glpk_data(psr)
     glpk = GenGLPK.new(psr)
     glpk.gen_glpk
     #
     res = []
     res.push('<script>')
+    # maximize, subj, generalsはArrayなので単に保存
     res.push('var glpkmaximize = `', glpk.maximize, '`;')
     res.push('var glpksubj = `', glpk.subj, '`;')
-    res.push('var glpkbounds = `', glpk.bounds, '`;')
     res.push('var glpkgenerals = `', glpk.generals, '`;')
+    # bounds はGLPK変数=>[最大,最小]
+    res.push('var glpkbounds = {')
+    glpk.bounds.each {|k, v| res.push("#{k}:#{v},") }
+    res[-1][-2..-1] == ''
+    res.push('};')
     res.push('</script>')
   end
 
-  # SUMMRAYセクションのデータ
+  # SUMMARYセクションのデータ
   # psr.summaryの要素は、[フラグ, 変数名] か nowidth等
   # 出力のsummaryは、Stringならnowidth等、配列なら[フラグ, GLPK変数名]
   def gen_html_summary(psr)
@@ -744,7 +769,7 @@ EOS
     psr.summary.each {|x|
       if x.size <= 1 then # nowidth等
         res.push("'#{x[0]}',")
-      elsif GROUPre =~ x[1] then # グループ
+      elsif GROUPre =~ x[1] then # グループ # !! 変数名集合もやるべき
         psr.group[x[1]].each {|v| res.push("['#{x[0]}', '#{psr.var[v]}']," ) }
       else # 変数
         res.push("['#{x[0]}', '#{psr.var[x[1]]}']," )
@@ -763,7 +788,7 @@ EOS
         res.push("'#{x[0].trip}',")
       elsif x[0] == 'newcolumn' then # newcolumn
         res.push("'newcolumn',", "'#{x[1].strip}',")
-        elsif GROUPre =~ x[1] then # グループ
+        elsif GROUPre =~ x[1] then # グループ # !! 変数名集合もやるべき
         psr.group[x[1]].each {|v| res.push("['#{x[0]}', '#{psr.var[v]}']," ) }
       else # 変数
         res.push("['#{x[0]}', '#{psr.var[x[1]]}']," )
@@ -772,11 +797,10 @@ EOS
     res.push('];', '</script>')
   end
 
-  # *指定有の変数がUIセクションで範囲指定される時、範囲最大になる条件を
-  # 収集しておく。GLPK変数=>[GLPK変数a, 値a, ...] (変数a=値aが条件))
+  # これ消える。プルダウンとかを生成するときに、「rangestar」クラスとかを
+  # 指定しておき、実行時に範囲指定が狭まっているかどうか判断するしかないか。
   def gen_html_fullrange(psr)
     res = ['<script>', 'var fullrange = {']
-    # psr.ui は[下限, 上限, '*', 変数名] か ['br'] 等上限・下限は、
     # Integer (定数)、Array (プルダウン)、String (テキストボックス)、
     # nil (なし)
     psr.ui.each {|x|
@@ -823,5 +847,5 @@ if $0 == __FILE__ then
 #   $stderr.puts 'generals', pp(glpk.generals)
 #   $stderr.puts 'induce', pp(glpk.induce)
 #
-#  puts GenHTML.gen_html(psr)
+  puts GenHTML.gen_html(psr)
 end
