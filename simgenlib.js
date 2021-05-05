@@ -1,59 +1,61 @@
 // -*- mode:js; mode:outline-minor -*-
 
-var job; // !! どこで定義されている?
-var glpkmaximize, glpksubj, glpkbounds, glpkgenerals; // glpkソースの確定部分
+var job;
+var glpkmaximize, glpksubj, glpkgenerals; // simgen.rbで生成したデータ
 var vname; // GLPK変数=>変数名の辞書
-var summary; // GLPK変数=>SUMMARYに表示するフラグ
-var details; // GLPK変数=>DETAILSに表示するフラグ
-var fullrange; // GLPK変数の範囲最大の条件 (INDUCEで寄与元が動的なら事前には不明)
+var summary; // SUMMARYセクションそのままの配列
+var details; // SUMMARYセクションそのままの配列
 var localstoragekey = 'simgen';
-
 
 //// 検索ボタン押下時の処理
 // 検索ボタンのイベントハンドラ
 function doQueryBtn() {
-    saveUIparam();
+    // saveUIparam(); !! ちょっとやめておく
     var btn = document.getElementById('querybtn');
-    if        (btn.textContent == btn.dataset.run) {
+    if        (btn.textContent == btn.getAttribute('run')) {
 	updateQueryBtn('stop');
 	doQueryBtnRun();
-    } else if (btn.textContent == btn.dataset.stop) { 
+    } else if (btn.textContent == btn.getAttribute('stop')) { 
 	updateQueryBtn('run/add');
 	doQueryBtnStop();
-    } else if (btn.textContent == btn.dataset.add) { 
+    } else if (btn.textContent == btn.getAttribute('add')) { 
 	updateQueryBtn('stop');
 	doQueryBtnAdd(); 
     }
 }
 
-// 検索ボタンの表示を変更 (val = 'stop' なら強制で「中止」)
+// 検索ボタンの表示を変更 (val = 'stop' なら強制で「中止」に変更)
 function updateQueryBtn(val) {
     var btn = document.getElementById('querybtn');
     if (job || val == 'stop') {
-	btn.textContent = btn.dataset.stop;
+	btn.textContent = btn.getAttribute('stop');
 	return;
     }	
     var d = document.querySelector('#resultpane details');
     if (d) {
-	btn.textContent = btn.dataset.add;
+	btn.textContent = btn.getAttribute('add');
     }	else {
-	btn.textContent = btn.dataset.run;
+	btn.textContent = btn.getAttribute('run');
     }
 }
 
 // 検索ボタンで「検索」
+// maximize, generalsは確定済。subjは途中までわかっているがUIから来る分が未確定。
+// boundsは何も確定していない。
 function doQueryBtnRun() {
-    // UIから変数の値を取得して (Subject to 末尾に追加される) GLPKソースを構築
-    var glpktxt = glpkmaximize + glpksubj +
-	get_glpk_ui() + glpkbounds + glpkgenerals;
-    dump_if_glpkshow(glpktxt);
+    // UIから変数の値を取得して (Subject to への追加分と、Bounds全体) GLPKソースを構築
+    var glpktxt = glpkmaximize + glpksubj + get_glpk_ui() +
+	get_glpk_bounds() + glpkgenerals;
+    // GLPKを表示する設定なら変数の対応やソースを表示
     if (glpkshow()) {
+	console.log(glpktxt);
 	str = [];
 	for (var v of Object.keys(vname)) {
 	    str.push(String(v) + ' ' + vname[v]);
 	}
-	dump_if_glpkshow(str.join(' / '));
+	console.log(str.join(' / '));
     }
+    // 検索実行
     doGLPK(glpktxt);
 }
 
@@ -66,8 +68,8 @@ function doQueryBtnStop() {
 
 // 検索ボタンで「追加検索」
 function doQueryBtnAdd() {
-    var glpktxt = glpkmaximize + glpksubj + 
-	get_glpk_ui() + get_glpk_add() + glpkbounds + glpkgenerals;
+    var glpktxt = glpkmaximize + glpksubj + get_glpk_ui() + get_glpk_add() +
+	get_glpk_bounds() + glpkgenerals;
     doGLPK(glpktxt);
 }
 
@@ -75,12 +77,6 @@ function doQueryBtnAdd() {
 function glpkshow() {
     var logNode = document.getElementById("glpklog");
     return logNode.style.display != 'none';
-}
-
-
-// GLPKログを表示する設定ならjavascriptコンソールへ出力
-function dump_if_glpkshow(x) {
-    if (glpkshow()) { console.log(x); }
 }
 
 // プルダウン、テキストボックス、チェックボックス等から値を取得
@@ -96,15 +92,51 @@ function get_value(elt) {
     return elt.getAttribute('v');
 }
 
-// UIから関係式を作り、文字列で返す
+// プルダウン、テキストボックス、チェックボックス等へ値を設定
+// これ以外はv属性を設定
+function set_value(elt, val) {
+    if (elt.tagName == 'SELECT') {
+	for (var i = 0; i < elt.length; i++) {
+	    if (elt.options[i].value == val) {
+		elt.selectedIndex = i;
+		break;
+	    }
+	}
+    } else if (elt.tagName == 'INPUT' && elt.type == 'text') {
+	elt.value = val;
+    } else if (elt.tagName == 'INPUT' && elt.type == 'checkbox') {
+	elt.checked = (val!=0);
+    } else {
+	elt.setAattribute('v', val);
+    }
+}
+
+// UIの寄与指定から関係式を作り、配列で返す
 function get_glpk_ui() {
-    var res = [];
+    // まず情報収集
+    var induce = {};
     var uis = document.querySelectorAll('.ui');
     for (var elt of uis) {
 	var v = elt.getAttribute('v');
-	res.push(`${v}=${get_value(elt)}\n`);
+	var u2 = elt;
+	while (true) {
+	    var u1 = u2.nextElementSibling;
+	    var u2 = u1 && u1.nextElementSibling;
+	    if (! u2) { break; }
+	    var c = get_value(u1);
+	    var u = get_value(u2);
+	    if (! (u in induce)) { induce[u] = '' }
+	    if (c[0] != '-') { c = '+' + c; }
+	    induce[u] = induce[u] + c + v;
+	}
     }
-    return res.join('');
+    // 式構成
+    var res = []; // glpksubjには既に'Subject to'あるので、ここは空
+    for (var u in induce) {
+	var eq = induce[u];
+	res.push(eq + '-' + u + '=0');
+    }
+    return res;
 }
 
 // 追加検索用に、検索結果から制約条件の関係式を作り、文字列で返す。
@@ -117,6 +149,23 @@ function get_glpk_add() {
 	res.push(smry.getAttribute('condInAdd'));
     }
     return res.join("\n");
+}
+
+// UIの範囲指定からBonudsの式を作り、配列で返す
+function get_glpk_bounds() {
+    var res = ['Bounds'];
+    var elts = document.querySelectorAll('.ui');
+    for (var elt of elts) {
+	var maxelt = elt.previousElementSibling;
+	var minelt = maxelt.previousElementSibling;
+	var v = get_value(elt);
+	var minval = get_value(minelt);
+	var maxval = get_value(maxelt);
+	if (minval != '') { v = String(minval) + ' <= ' + v; }
+	if (maxval != '') { v = v + ' <= ' + String(maxval); }
+	res.push(v);
+    }
+    return res;
 }
 
 // GLPKに検索を送る
@@ -144,12 +193,10 @@ function doGLPK(glpktxt) {
 
 // GLPK実行中にログを書き足し
 function log_if_glpkshow(value){
-    var logNode = document.getElementById("glpklog");
-    if (logNode.style.display == 'none') { return; }
+    if (! glpkshow()) {return; }
     logNode.appendChild(document.createTextNode(value + "\n"));
     logNode.scrollTop = logNode.scrollHeight;
 }
-
 
 //// 結果表示
 // 結果を挿入
@@ -276,16 +323,21 @@ function detailsText(res, tm) {
     return lines.join("\n");
 }
 
-// 与えられたGLPK変数がUIセクションで範囲一杯の指定を受けているか
-// ただし、動的な場合は事前には決まっていないのでどうする?
-function isFullrange(res, v) {
-    var x = fullrange[v]; // !! fullrange の中身はなんだ?
-    if (! x) { return false; }
-    if (x.length >= 2 && res[x[0]] != x[1]) { return false; }
-    if (x.length >= 4 && res[x[2]] != x[3]) { return false; }
-    return true;
+// 検索結果のGLPK変数のうち、UIセクションで範囲一杯の指定を受けているもののSetを返す
+function fullrange() {
+    var res = new Set();
+    var elts = document.querySelectorAll('.ui');
+    for (var elt of elts) {
+	var maxelt = elt.previousElementSibling;
+	var minelt = maxelt.previousElementSibling;
+	if (get_value(minelt) == minelt.getAttribute('f') &&
+	    get_value(maxelt) == maxelt.getAttribute('f')) {
+	    res.add(get_value(elt));
+	)
+    }
+    return res;
 }
-
+   
 // スタイル指定付きspanを配列で返す
 function spanWithStyle(x, st) {
     if (! st) {
@@ -310,11 +362,12 @@ function clearResult() {
     var respane = document.getElementById('resultpane');
     respane.innerHTML = '';
     updateQueryBtn('run/add');
-    saveUIparam();
+    // saveUIparam(); !! ちょっとやめておく
 }
 
 //// localstrageの記録と回復
 // UIのパラメータをlocal storage
+// !! ここはぜんぜんだめ。目処もたたない
 function saveUIparam() {
     // 変数名をキーにして辞書を作る
     var res = {};
@@ -328,6 +381,7 @@ function saveUIparam() {
 }
 
 // UIのパラメータをlocal storageから回復
+// !! ここはぜんぜんだめ。目処もたたない
 function loadUIparam() {
     var str = localStorage[localstoragekey];
     var dic = str ? JSON.parse(str) : {};
@@ -354,5 +408,5 @@ function loadUIparam() {
 //// onload
 onload = function () {
     // UIパラメータの回復
-    loadUIparam();
+    // loadUIparam(); !! ちょっとやめておく
 }
