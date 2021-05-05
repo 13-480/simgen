@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 # class Parse で Array の扱いを変えた
 # UIセクションとINDUCEセクションを発展・統合
-# UIとINDUCEセクションを統合したUI2セクションのパーズまでは書いたので、
-# GLPKとhtmlを吐く所をこれから書く
 
 #### 正規表現
 avoidchars = '-+=<>()#?:"\'\\[\\]{},\\s'
@@ -616,8 +614,8 @@ EOS
       line.push '<span class=ui>'
     end
     # 下限、上限
-    line.push gen_html_ui_num(x[0])
-    line.push gen_html_ui_num(x[1])
+    line.push gen_html_ui_num(x[0], :min)
+    line.push gen_html_ui_num(x[1], :max)
     # フラグ
     line.push '<span v="%s"></span>' % x[2]
     # 寄与元変数
@@ -632,18 +630,21 @@ EOS
   end
 
   # 数値の定数やプルダウン等をArrayで返す
-  def gen_html_ui_num(a)
+  # v属性はget_valueで拾える。f属性はfullrangeになる値
+  def gen_html_ui_num(a, f=nil)
     case a
     when :none # 無指定でもプレースホルダ
-      '<span v=""></span>'
+      '<span v="" f=""></span>'
     when Integer # 数値
-      "<span v=#{a}></span>"
+      "<span v=#{a} f=#{a}></span>"
     when String # テキストボックス
-      '<input type=text value=%s style="width:25px">' % a[0...-1]
+      '<input type=text value=%s f="" style="width:25px">' % a[0...-1]
     when :checkbox # チェックボックス
-      '<input type=checkbox>'
+      fstr = (f==:max) ? 1 : 0
+      "<input type=checkbox f=#{fstr}>"
     when Array
-      [ '<select>',
+      fstr = (f==:max) ? a.max : a.min
+      [ "<select f=#{fstr}>",
         a.map {|x| '<option value="%s">%s</option>' % [x, x] },
         '</select>' ]
     else
