@@ -111,32 +111,29 @@ function set_value(elt, val) {
     }
 }
 
-// UIの寄与指定から関係式を作り、配列で返す
+// UIの寄与指定から関係式を作り、文字列で返す
 function get_glpk_ui() {
     // まず情報収集
     var induce = {};
     var uis = document.querySelectorAll('.ui');
     for (var elt of uis) {
-	var v = elt.getAttribute('v');
-	var u2 = elt;
-	while (true) {
-	    var u1 = u2.nextElementSibling;
-	    var u2 = u1 && u1.nextElementSibling;
-	    if (! u2) { break; }
-	    var c = get_value(u1);
-	    var u = get_value(u2);
-	    if (! (u in induce)) { induce[u] = '' }
+	var v = get_value(elt.children[3]); // 寄与元GLPK変数名
+	for (var i =43; i < elt.children.length-1; i+=2) {
+	    var c = get_value(elt.children[i]);
+	    var u = get_value(elt.children[i+1]);
+	    if (! (u in induce)) { induce[u] = ''; }
 	    if (c[0] != '-') { c = '+' + c; }
-	    induce[u] = induce[u] + c + v;
+	    induce[u] = induce[u] + c + v;	    
 	}
     }
     // 式構成
     var res = []; // glpksubjには既に'Subject to'あるので、ここは空
     for (var u in induce) {
 	var eq = induce[u];
-	res.push(eq + '-' + u + '=0');
+	res.push(eq + '-' + u + ' = 0');
     }
-    return res;
+    res.push("\n");
+    return res.join("\n");
 }
 
 // 追加検索用に、検索結果から制約条件の関係式を作り、文字列で返す。
@@ -148,6 +145,7 @@ function get_glpk_add() {
     for (var smry of smrys) {
 	res.push(smry.getAttribute('condInAdd'));
     }
+    res.push("\n");
     return res.join("\n");
 }
 
@@ -156,16 +154,16 @@ function get_glpk_bounds() {
     var res = ['Bounds'];
     var elts = document.querySelectorAll('.ui');
     for (var elt of elts) {
-	var maxelt = elt.previousElementSibling;
-	var minelt = maxelt.previousElementSibling;
-	var v = get_value(elt);
-	var minval = get_value(minelt);
-	var maxval = get_value(maxelt);
-	if (minval != '') { v = String(minval) + ' <= ' + v; }
-	if (maxval != '') { v = v + ' <= ' + String(maxval); }
+	var min = get_value(elt.children[0]);
+	var max = get_value(elt.children[1]);
+	var v = get_value(elt.children[3]);
+	if (min != '') { v = min + ' <= ' + v; }
+	if (max != '') { v = v + ' <= ' + max; }
+	if (min == '' && max == '') { v = '-inf <= ' + v + ' <= +inf'; }
 	res.push(v);
     }
-    return res;
+    res.push("\n");
+    return res.join("\n");
 }
 
 // GLPKに検索を送る
@@ -194,6 +192,7 @@ function doGLPK(glpktxt) {
 // GLPK実行中にログを書き足し
 function log_if_glpkshow(value){
     if (! glpkshow()) {return; }
+    var logNode = document.getElementById("glpklog");
     logNode.appendChild(document.createTextNode(value + "\n"));
     logNode.scrollTop = logNode.scrollHeight;
 }
@@ -333,7 +332,7 @@ function fullrange() {
 	if (get_value(minelt) == minelt.getAttribute('f') &&
 	    get_value(maxelt) == maxelt.getAttribute('f')) {
 	    res.add(get_value(elt));
-	)
+	}
     }
     return res;
 }
