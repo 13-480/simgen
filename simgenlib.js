@@ -118,7 +118,7 @@ function get_glpk_ui() {
     var uis = document.querySelectorAll('.ui');
     for (var elt of uis) {
 	var v = get_value(elt.children[3]); // 寄与元GLPK変数名
-	for (var i =43; i < elt.children.length-1; i+=2) {
+	for (var i = 4; i < elt.children.length-1; i+=2) {
 	    var c = get_value(elt.children[i]);
 	    var u = get_value(elt.children[i+1]);
 	    if (! (u in induce)) { induce[u] = ''; }
@@ -152,15 +152,24 @@ function get_glpk_add() {
 // UIの範囲指定からBonudsの式を作り、配列で返す
 function get_glpk_bounds() {
     var res = ['Bounds'];
+    // すべてのGLPK変数のSet
+    var vs = new Set();
+    for (v of Object.keys(vname)) { vs.add(v); }
+    // UIにあるものは範囲を取得
     var elts = document.querySelectorAll('.ui');
     for (var elt of elts) {
-	var min = get_value(elt.children[0]);
-	var max = get_value(elt.children[1]);
+	var min = String(get_value(elt.children[0]));
+	var max = String(get_value(elt.children[1]));
 	var v = get_value(elt.children[3]);
+	vs.delete(v);
 	if (min != '') { v = min + ' <= ' + v; }
 	if (max != '') { v = v + ' <= ' + max; }
 	if (min == '' && max == '') { v = '-inf <= ' + v + ' <= +inf'; }
 	res.push(v);
+    }
+    // UIになかったもの
+    for (var v of vs) {
+	res.push('-inf <= ' + v + '<= +inf');
     }
     res.push("\n");
     return res.join("\n");
@@ -275,6 +284,13 @@ function detailsText(res, tm) {
     var lines = [];
     var row = null;
     var carryover = []; // 次の列に持ち越すもの
+    var fullrng = fullrange(); // UIセクションで「*」かつ範囲一杯のGLPK変数のSet
+    // UIセクションで範囲一杯の指定を受けているもののSet
+    //
+    if (glpkshow()) {
+	console.log(fullrng);
+    }
+    // 
     for (var x of details) {
 	if (! (x instanceof Array)) { // 見出し等
 	    if (x == 'newcolumn') { // 列生成
@@ -307,7 +323,7 @@ function detailsText(res, tm) {
 	    }
 	    // 範囲一杯かどうかで判断して現在列か次の列に追加する
 	    if (line.length > 0) {
-		if (isFullrange(res, x[1])) {
+		if (res[x[1]] > 0 && fullrng.has(x[1])) {
 		    carryover.push(line.join(' '));
 		} else {
 		    (row || lines).push(line.join(' '));
@@ -322,16 +338,19 @@ function detailsText(res, tm) {
     return lines.join("\n");
 }
 
-// 検索結果のGLPK変数のうち、UIセクションで範囲一杯の指定を受けているもののSetを返す
+// UIセクションで「*」付きで、かつ、範囲一杯の指定を受けているGLPK変数のSetを返す
 function fullrange() {
     var res = new Set();
     var elts = document.querySelectorAll('.ui');
     for (var elt of elts) {
-	var maxelt = elt.previousElementSibling;
-	var minelt = maxelt.previousElementSibling;
-	if (get_value(minelt) == minelt.getAttribute('f') &&
+	var minelt = elt.children[0];
+	var maxelt = elt.children[1];
+	var star = get_value(elt.children[2]);
+	var v = get_value(elt.children[3]);
+	if (star == '*' &&
+	    get_value(minelt) == minelt.getAttribute('f') &&
 	    get_value(maxelt) == maxelt.getAttribute('f')) {
-	    res.add(get_value(elt));
+	    res.add(v);
 	}
     }
     return res;
