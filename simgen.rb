@@ -607,7 +607,7 @@ EOS
       ui_elt |= x[i] != :none && ! x[i].kind_of?(Integer) }
     # spanでくるむ
     if ! ui_elt then
-      line.push '<span  class=ui style="display:none">'
+      line.push '<span class=ui style="display:none">'
     elsif @ui_width then
       line.push '<span class=ui style="display:inline-block;%s">' % @ui_width
     else
@@ -638,7 +638,7 @@ EOS
     when Integer # 数値
       "<span v=#{a} f=#{a}></span>"
     when String # テキストボックス
-      '<input type=text value=%s f="" style="width:25px">' % a[0...-1]
+      '<input type=text value="%s" f="" style="width:25px">' % a
     when :checkbox # チェックボックス
       fstr = (f==:max) ? 1 : 0
       "<input type=checkbox f=#{fstr}>"
@@ -657,11 +657,11 @@ EOS
     line = []
     if v[0] != '{' then # 変数名
       text = visible ? v : ''
-      line.push '<span v=%s>%s</span>' % [v, text]
+      line.push '<span v=%s>%s</span>' % [@psr.var[v], text]
     else # グループ名
       line.push '<select>'
       @psr.group[v].map {|x|
-        line.push '<option value="%s">%s</option>' % [x, x] }
+        line.push '<option value="%s">%s</option>' % [@psr.var[x], x] }
       line.push '</select>'
     end
     line
