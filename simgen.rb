@@ -450,6 +450,7 @@ class GenHTML
     @maximize = ['Maximize']
     @subj = ['Subject to']
     @generals = ['Generals']
+    @ui_cnt = 0 # ui部品に連番を振るため
   end # of initialize
 
   # htmlを生成して配列で返す
@@ -609,10 +610,12 @@ EOS
     if ! ui_elt then
       line.push '<span class=ui style="display:none">'
     elsif @ui_width then
-      line.push '<span class=ui style="display:inline-block;%s">' % @ui_width
+      line.push '<span class=ui uicnt=%s style="display:inline-block;%s">' %
+                [@ui_cnt, @ui_width]
     else
-      line.push '<span class=ui>'
+      line.push '<span class=ui uicnt=%s>' % @ui_cnt
     end
+    @ui_cnt += 1
     # 下限、上限
     line.push gen_html_ui_num(x[0], :min)
     line.push gen_html_ui_num(x[1], :max)
