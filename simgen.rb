@@ -290,7 +290,7 @@ class SimParser
   def parse_intui(line)
     if /^-?\d+/ =~ line then # 数値
       [$&.to_i, $']
-    elsif /^\[(.*)\]/ =~ line then # 数値集合
+    elsif /^\[(.*?)\]/ =~ line then # 数値集合 (?は*の最短を指定)
       [$1.split(' ').map {|x| x.to_i }, $']
     else
       false
@@ -376,7 +376,7 @@ class SimParser
       end
     }
     # 入れ子の処理
-    h = {}
+    h = Hash.new {|h, k| h[k] = [] }
     while ! @group.empty?
       cnt = @group.size
       @group.each {|grp, ary|
@@ -391,7 +391,7 @@ class SimParser
           break
         end
       }
-      raise 'recursive group' if cnt == @group.size
+      raise 'recursive group:' if cnt == @group.size
     end
     @group = h
   end # of resolve_group
@@ -529,7 +529,9 @@ class GenHTML
     f1.each {|k, v| (k == '') ? (rhs -= v) : (lhs[k] += v) }
     f2.each {|k, v| (k == '') ? (rhs += v) : (lhs[k] -= v) }
     lhs.reject! {|k,v| v == 0 }
-    raise '0 %s %s' % [op, rhs] if lhs.empty? # エラーの可能性大だが
+    if lhs.empty? then # エラーの疑い濃厚か?
+      $stderr.puts 'Warning in simplify: 0 %s %s' % [op, rhs]
+    end
     #
     [lhs.map {|k, v| '%+d %s' % [v, @psr.var[k]] }, op, rhs].flatten.join(' ')
   end # of simplify
@@ -556,9 +558,7 @@ EOS
     str
   end
 
-  # UI !!!! ここは後回し !! fullrange の[rangestar]クラスも付加すべき
-  # glpk.ui2は、
-  # [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
+  # glpk.uiは、[下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
   # 最初の3つは省略可能。
   # 上限・下限や値は、定数はInteger、プルダウンはArray、チェックボックスは:checkbox、
   # テキストボックスはString、ないなら:none。
@@ -568,7 +568,7 @@ EOS
     inDetails = false
     @psr.ui.each {|x| # [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]
       if x.kind_of?(Array) && x.size >= 3 then
-        res.push gen_html_ui_elt(x) #UI部品
+        res.push gen_html_ui_elt(x) # UI部品
       else # 幅指定等
         case x[0]
         when 'br' # 改行
@@ -756,8 +756,8 @@ if $0 == __FILE__ then
 #   p psr.meta
    $stderr.puts 'UI', pp(psr.ui)
 #   $stderr.puts psr.query.inspect
-   $stderr.puts '@group', pp(psr.group)
-   $stderr.puts 'RELATION', pp(psr.relation)
+#   $stderr.puts '@group', pp(psr.group)
+#   $stderr.puts 'RELATION', pp(psr.relation)
 #   p psr.unlock
 #   $stderr.puts psr.summary.inspect
 #   $stderr.puts psr.details.inspect
