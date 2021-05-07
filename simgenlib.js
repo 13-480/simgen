@@ -112,7 +112,7 @@ function set_value(elt, val) {
 
 // UIの寄与指定から関係式を作り、文字列で返す
 function get_glpk_ui() {
-    // まず情報収集
+    // まず情報収集 !! 1次式に同じ変数は2度出現してはいけないのを修正すべし
     var induce = {};
     var uis = document.querySelectorAll('.ui');
     for (var elt of uis) {
