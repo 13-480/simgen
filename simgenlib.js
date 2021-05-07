@@ -1,5 +1,4 @@
 // -*- mode:js; mode:outline-minor -*-
-
 var job;
 var glpkmaximize, glpksubj, glpkgenerals; // simgen.rbで生成したデータ
 var vname; // GLPK変数=>変数名の辞書
@@ -10,7 +9,7 @@ var localstoragekey = 'simgen';
 //// 検索ボタン押下時の処理
 // 検索ボタンのイベントハンドラ
 function doQueryBtn() {
-    // saveUIparam(); !! ちょっとやめておく
+    saveUIparam();
     var btn = document.getElementById('querybtn');
     if        (btn.textContent == btn.getAttribute('run')) {
 	updateQueryBtn('stop');
@@ -285,11 +284,6 @@ function detailsText(res, tm) {
     var row = null;
     var carryover = []; // 次の列に持ち越すもの
     var fullrng = fullrange(); // UIセクションで「*」かつ範囲一杯のGLPK変数のSet
-    // UIセクションで範囲一杯の指定を受けているもののSet
-    //
-    if (glpkshow()) {
-	console.log(fullrng);
-    }
     // 
     for (var x of details) {
 	if (! (x instanceof Array)) { // 見出し等
@@ -380,19 +374,33 @@ function clearResult() {
     var respane = document.getElementById('resultpane');
     respane.innerHTML = '';
     updateQueryBtn('run/add');
-    // saveUIparam(); !! ちょっとやめておく
+    saveUIparam();
 }
 
 //// localstrageの記録と回復
 // UIのパラメータをlocal storage
 // !! ここはぜんぜんだめ。目処もたたない
 function saveUIparam() {
-    // 変数名をキーにして辞書を作る
+    // (GLPKでない) 変数名をキーにして辞書を作る
     var res = {};
     var uis = document.querySelectorAll('.ui');
     for (var elt of uis) {
-	var v = elt.getAttribute('v');
-	res[vname[v]] = get_value(elt);
+	var uicnt = elt.getAttribute('uicnt');
+	if (! uicnt) { continue; } // すべて定数のUI部品は無視
+	var xs = elt.children;
+	var h = {};
+	// 定数でない値を収集
+	for (var i = 0; i < xs.length; i++) {
+	    if (xs[i].tagName == 'SELECT' || xs[i].tagName == 'INPUT') {
+		h[String(i)] = get_value(xs[i]);
+	    }
+	}
+	// 寄与元が定数なら単にresに登録、違うなら順にためる
+	if (xs[3].tagName != 'SELECT' && xs[3].tagName != 'INPUT') {
+	    res[vname[get_value(xs[3])]] = h;
+	} else {
+	    res[uicnt] = h;
+	}
     }
     // 記録
     localStorage[localstoragekey] = JSON.stringify(res);
@@ -405,6 +413,8 @@ function loadUIparam() {
     var dic = str ? JSON.parse(str) : {};
     var uis = document.querySelectorAll('.ui');
     for (var elt of uis) {
+	var uicnt = elt.getAttribute('uicnt');
+	if (! uicnt) { continue; } // すべて定数のUI部品は無視
 	var v = elt.getAttribute('v');
 	if (vname[v] in dic) {
 	    var val = dic[vname[v]];
