@@ -591,6 +591,7 @@ EOS
         end
       end
     }
+    res.push('</details>') if inDetails # 前回のを閉じる
     res
   end
 
@@ -753,24 +754,23 @@ if $0 == __FILE__ then
   lines = ARGF.to_a.map {|line| line.encode('UTF-8', 'UTF-8') }
   psr = SimParser.new(lines)
   psr.parse
-#   p psr.meta
-   $stderr.puts 'UI', pp(psr.ui)
-#   $stderr.puts psr.query.inspect
-#   $stderr.puts '@group', pp(psr.group)
-#   $stderr.puts 'RELATION', pp(psr.relation)
-#   p psr.unlock
-#   $stderr.puts psr.summary.inspect
-#   $stderr.puts psr.details.inspect
-# $stderr.puts 'GROUP', pp(psr.group)
-#    $stderr.puts 'var', pp(psr.var)
-   # glpk = GenGLPK.new(psr)
-   # glpk.gen_glpk
-   # $stderr.puts 'maximize', pp(glpk.maximize)
-   # $stderr.puts 'subj', pp(glpk.subj)
-   # $stderr.puts 'bounds', pp(glpk.bounds)
-   # $stderr.puts 'generals', pp(glpk.generals)
-   # $stderr.puts 'induce', pp(glpk.induce)
-   #
-   gh = GenHTML.new(psr)
-   puts gh.gen_html
+  # p psr.meta
+  # $stderr.puts 'UI', pp(psr.ui)
+  # $stderr.puts psr.query.inspect
+  # $stderr.puts '@group', pp(psr.group)
+  # $stderr.puts 'RELATION', pp(psr.relation)
+  # p psr.unlock
+  # $stderr.puts psr.summary.inspect
+  # $stderr.puts psr.details.inspect
+  # $stderr.puts 'GROUP', pp(psr.group)
+  # $stderr.puts 'var', pp(psr.var)
+  # glpk = GenGLPK.new(psr)
+  # glpk.gen_glpk
+  # $stderr.puts 'maximize', pp(glpk.maximize)
+  # $stderr.puts 'subj', pp(glpk.subj)
+  # $stderr.puts 'bounds', pp(glpk.bounds)
+  # $stderr.puts 'generals', pp(glpk.generals)
+  # $stderr.puts 'induce', pp(glpk.induce)
+  gh = GenHTML.new(psr)
+  puts gh.gen_html
 end
