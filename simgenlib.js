@@ -305,6 +305,8 @@ function detailsText(res, tm) {
 
 		// !! 追加スキルボタンの処理が入る予定
 		
+	    } else if (x == 'time') { // 時刻
+		(row || lines).push(String((tm/1000).toFixed(3)) + 'sec');
 	    } else { // 見出し
 		var st = 'text-decoration:underline';
 		if (x[0] == '!') { // 先頭!は強制で先頭
