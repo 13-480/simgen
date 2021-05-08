@@ -147,8 +147,6 @@ def parse_skill
   res
 end
 
-
-
 #### main
 sklmax = parse_skill
 # puts sklmax
@@ -161,8 +159,8 @@ puts DATA.to_a.join % [
        sk.join("\n"),
      ]
 
+# DATAはmhrシミュの雛形。%sは3つあり、順に、防具、装飾品、スキル条件
 __END__
-# mhrシミュの雛形パーセントsは3つあり、順に、防具、装飾品、スキル条件
 <META>
 title mhrシミュ
 # glpk show
