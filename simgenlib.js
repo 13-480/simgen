@@ -378,8 +378,7 @@ function clearResult() {
 }
 
 //// localstrageの記録と回復
-// UIのパラメータをlocal storage
-// !! ここはぜんぜんだめ。目処もたたない
+// UIのパラメータをlocal storageへ保存
 function saveUIparam() {
     // (GLPKでない) 変数名をキーにして辞書を作る
     var res = {};
@@ -407,7 +406,6 @@ function saveUIparam() {
 }
 
 // UIのパラメータをlocal storageから回復
-// !! ここはぜんぜんだめ。目処もたたない
 function loadUIparam() {
     var str = localStorage[localstoragekey];
     var dic = str ? JSON.parse(str) : {};
@@ -415,19 +413,16 @@ function loadUIparam() {
     for (var elt of uis) {
 	var uicnt = elt.getAttribute('uicnt');
 	if (! uicnt) { continue; } // すべて定数のUI部品は無視
-	var v = elt.getAttribute('v');
-	if (vname[v] in dic) {
-	    var val = dic[vname[v]];
-	    if (elt.tagName == 'INPUT' && elt.type == 'text') {
-		elt.value = val;
-	    } else if (elt.tagName == 'INPUT' && elt.type == 'checkbox') {
-		elt.checked = ((val==0) ? false : true);
-	    } else if (elt.tagName == 'SELECT') {
-		for (var i = 0; i < elt.length; i++) {
-		    if (elt.options[i].value == val) {
-			elt.selectedIndex = i;
-		    }
-		}
+	var xs = elt.children;
+	// 寄与元が定数かどうかで、dicのキーを決める
+	var k = (xs[3].tagName == 'SELECT' || xs[3].tagName == 'INPUT') ?
+	    String(uicnt) : vname[get_value(xs[3])];
+	if (! (k in dic)) { continue; }
+	// 安全のため定数でない要素にのみ値を設定
+	for (var ii in dic[k]) {
+	    var i = Number(ii);
+	    if (xs[i].tagName == 'SELECT' || xs[i].tagName == 'INPUT') {
+		set_value(xs[i], dic[k][ii]);
 	    }
 	}
     }
@@ -436,5 +431,5 @@ function loadUIparam() {
 //// onload
 onload = function () {
     // UIパラメータの回復
-    // loadUIparam(); !! ちょっとやめておく
+    loadUIparam();
 }
