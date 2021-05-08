@@ -91,9 +91,13 @@ def equip
     ls.shift # 見出しは捨てる
     ls
   }
+  lss = sort_equip(lss) # レア度順に安定ソートし、全部位ないときはnilで埋める
   #
   yss = lss.map.with_index {|ls, i|
     ls.map {|line|
+      if line.nil? then # その部位はない
+        next 'space' # 引数付きnext はその回の値を指定しつつ、次の繰り返しへジャンプ
+      end
       xs = line.split(',')
       name, sl1, sl2, sl3, de, demax = xs.values_at(0, 3,4,5, 7,8)
       taisei = xs[9..13]
@@ -127,6 +131,43 @@ def equip
   res
 end
 
+# 装備をレア度で安定ソートし、5部位揃っていないものはnilで補う
+# 防具
+# 00 名前
+# 01 "性別(0=両,1=男,2=女)"
+# 02 レア度
+# 後略
+def sort_equip(lss)
+  # 各防具をレア度で安定ソート
+  lss = lss.map {|ls|
+    ls.stable_sort_by {|line| line.split(',')[2].to_i } }
+  # 次をカットすればシリーズ共通の文字列になる
+  cutre = Regexp.new(<<EOS.split(/\s+/).join('|'))
+【元結】 【白衣】 【花袖】 【腰巻】 【緋袴】
+【兜】 【胸当て】 【篭手】 【腰当て】 【具足】
+【頭巾】 【上衣】 【手甲】 【脚絆】
+【御面】 【覆面】 
+こうべ むなさき かいな こしもと おみあし
+ヘルム メイル アーム コイル グリーヴ
+ヘッド ボディ グラブ ベルト フット
+テスタ ペット マーノ アンカ ガンバ
+ハット スーツ グローブ ブーツ
+フロール トロンコ ラーマ オッハ ライース
+フード マント ペプラム スリーブ パンツ
+ベスト パレオ サンダル
+ゲヒル ムスケル ファオスト ナーベル フェルゼ
+パオ・ カイ・
+フェイク
+ロボス
+革籠手 革臑当
+添髪 羽織 篭手 帯 袴 
+EOS
+  # ガブラスの頭だけ「ーツ」がないので注意
+  align_by(lss) {|line|
+    line.split(',')[0].sub('ガブラスーツ', 'ガブラス').gsub(cutre, '')
+  }
+end
+
 # スキルのファイルを見て、最大値を取得し、スキル系統=>最大値のHashを返す
 # 00 スキル系統
 # 01 発動スキル
@@ -145,6 +186,36 @@ def parse_skill
     res[name] = [res[name], val.to_i].max
   }
   res
+end
+
+# 配列の配列を与えると、カテゴリごとに何番目かが揃うようにnilを挿入
+# 例: [[1,1,2,2,3], [1,2,2,3,3]] => [[1,1,2,2,3,nil], [1,nil,2,2,3,3]]
+# ブロックを与えると、それでカテゴリに変換する
+def align_by(xss, &f)
+  xss = xss.map {|xs| xs.dup }
+  g = f ? (proc {|x| x ? f[x] : x }) : (proc {|x| x} )
+  n = xss.size
+  yss = n.times.map {[]}
+  #
+  while xss.any? {|xs| ! xs.empty? }
+    ass = n.times.map {|i|
+      n.times.map {|j| xss[j].index {|x| g[x] == g[xss[i][0]] }}}
+    n.times {|ii|
+      if ! ass[ii].empty? && ass[ii].compact.max == 0 then
+        n.times {|jj|
+          yss[jj].push(ass[ii][jj]==0 ? xss[jj].shift : nil ) }
+        break
+      end
+    }
+  end
+  yss
+end
+
+# 安定なsort_by (Arrayに定義するのは怒られそうだが)
+class Array
+  def stable_sort_by(&f)
+    self.sort_by.with_index {|x, i| [f[x], i] }
+  end
 end
 
 #### main
@@ -208,7 +279,7 @@ br
 nowidth
 (1..1) 武器スロット -> [0 1 2 3] Lv1スロ, [0 1 2 3] Lv2スロ, [0 1 2 3] Lv3スロ
 
-subsection 最大化するもの
+subsection 何が最大のものを検索するか
 [最終強化防御力 防御力 {スキル}] -> 1000 最大化式
 Lv1以上空きスロ -> 1 最大化式
 
