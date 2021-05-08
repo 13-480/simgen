@@ -442,8 +442,46 @@ function loadUIparam() {
     }
 }
 
+//// プルダウンを選択したときの色設定
+// 数値のプルダウンのイベントハンドラを設定
+function setPulldownHandlers() {
+    var drps = document.querySelectorAll('select');
+    for (var elt of drps) {
+	if (elt.hasAttribute('f')) {
+	    updateHilite(elt);
+	    elt.addEventListener('change', h_Pulldown);
+	}
+    }
+}
+
+// プルダウンに変更があったときのイベントハンドラ
+function h_Pulldown(ev) {
+    updateHilite(ev.target);
+}
+
+// プルダウンの背景色を設定する
+function updateHilite(elt) {
+    var max = -999999;
+    var min = 999999;
+    for (var i = 0; i < elt.length;  i++) {
+	var a = Number(elt.options[i].value);
+	max = Math.max(max, a);
+	min = Math.min(min, a);
+    }
+    elt.classList.remove('hiliteMax');
+    elt.classList.remove('hiliteMin');
+    var a = Number(elt.options[elt.selectedIndex].value);
+    if (a == max) {
+	elt.classList.add('hiliteMax');
+    } else if (a == min) {
+	elt.classList.add('hiliteMin');
+    }
+}
+
 //// onload
 onload = function () {
     // UIパラメータの回復
     loadUIparam();
+    // プルダウンのイベントハンドラ設定
+    setPulldownHandlers();
 }
