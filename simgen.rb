@@ -550,6 +550,11 @@ class GenHTML
 <!-- スクリプト読み込み -->
 <script type="text/javascript" src="./simgenlib.js"></script>
 <!-- スタイルシート読み込み -->
+<style type="text/css">
+summary.uismry {background: #ddddff;font-weight:bold}
+summary.ressmry {background: #ddffdd;font-weight:normal}
+
+</style>
 
 </head>
 <body style="font-family:sans-serif;font-size:small">
@@ -584,7 +589,8 @@ EOS
           @ui_width = x[0]
         when 'subsection' # details要素に入れる
           res.push('</details>') if inDetails # 前回のを閉じる
-          res.push('<details open=true>', '<summary>%s</h3></summary>' % x[1])
+          res.push('<details open=true>')
+          res.push('<summary class=uismry>%s</h3></summary>' % x[1])
           inDetails = true
         else # そのまま垂れ流し !! エスケープ必要 !! これ現状はありえないことになってる
           res.push(x[0])
