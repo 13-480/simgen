@@ -264,4 +264,7 @@ nv Lv1空きスロ
 nv Lv2空きスロ
 nv Lv3空きスロ
 
+newcolumn 所要時間
+time
+
 newcolumn 追加スキル
