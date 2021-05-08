@@ -112,32 +112,6 @@ function set_value(elt, val) {
 
 // UIの寄与指定から関係式を作り、文字列で返す
 function get_glpk_ui() {
-    // まず情報収集 !! 1次式に同じ変数は2度出現してはいけないのを修正すべし
-    var induce = {};
-    var uis = document.querySelectorAll('.ui');
-    for (var elt of uis) {
-	var v = get_value(elt.children[3]); // 寄与元GLPK変数名
-	for (var i = 4; i < elt.children.length-1; i+=2) {
-	    var c = get_value(elt.children[i]);
-	    var u = get_value(elt.children[i+1]);
-	    if (! (u in induce)) { induce[u] = ''; }
-	    if (c[0] != '-') { c = '+' + c; }
-	    induce[u] = induce[u] + c + v;	    
-	}
-    }
-    // 式構成
-    var res = []; // glpksubjには既に'Subject to'あるので、ここは空
-    for (var u in induce) {
-	var eq = induce[u];
-	res.push(eq + '-' + u + ' = 0');
-    }
-    res.push("\n");
-    return res.join("\n");
-}
-
-// UIの寄与指定から関係式を作り、文字列で返す
-// 新規バージョン
-function get_glpk_ui() {
     // まず情報収集
     var induce = {}; // 寄与先GLPK変数 => 1次式 (1次式は、GLPK変数=>係数)
     var uis = document.querySelectorAll('.ui');
