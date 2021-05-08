@@ -554,7 +554,8 @@ class GenHTML
 <style type="text/css">
 summary.uismry {background: #ddddff;font-weight:bold}
 summary.ressmry {background: #ddffdd;font-weight:normal}
-
+select.hiliteMax {background: #ffdddd}
+select.hiliteMin {background: #f8f8f8}
 </style>
 
 </head>
