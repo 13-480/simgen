@@ -135,6 +135,40 @@ function get_glpk_ui() {
     return res.join("\n");
 }
 
+// UIの寄与指定から関係式を作り、文字列で返す
+// 新規バージョン
+function get_glpk_ui() {
+    // まず情報収集
+    var induce = {}; // 寄与先GLPK変数 => 1次式 (1次式は、GLPK変数=>係数)
+    var uis = document.querySelectorAll('.ui');
+    for (var elt of uis) {
+	var v = get_value(elt.children[3]); // 寄与元GLPK変数名
+	for (var i = 4; i < elt.children.length-1; i+=2) {
+	    var c = get_value(elt.children[i]);   // 寄与先GLPK変数の係数
+	    var u = get_value(elt.children[i+1]); // 寄与先GLPK変数名
+	    if (! (u in induce)) { induce[u] = {}; }
+	    if (! (v in induce[u])) { induce[u][v] = 0; }
+	    induce[u][v] += Number(c);
+	}
+    }
+    // 式構成
+    var res = []; // glpksubjには既に'Subject to'あるので、ここは空
+    for (var u in induce) { // u は寄与先GLPK変数
+	// 左辺のうち、1次式部分の構築
+	var eq = '';
+	for (var v in induce[u]) { // v は寄与元GLPK変数
+	    if (induce[u][v] >= 0) { eq += '+'; }
+	    eq += String(induce[u][v]) + v;
+	}
+	if (eq == '') { eq = '0'; }
+	// 左辺の寄与先変数部分と、右辺の構築
+	eq += '-' + u + ' = 0';
+	res.push(eq);
+    }
+    res.push("\n");
+    return res.join("\n");
+}
+
 // 追加検索用に、検索結果から制約条件の関係式を作り、文字列で返す。
 // summaryで n* と指定されているもので、結果で0でないものが対象。
 // insertResultするときに、summary要素に保存してある。
