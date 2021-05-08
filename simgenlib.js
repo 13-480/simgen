@@ -220,7 +220,8 @@ function insertResult(res, tm) {
     // summary部分
     var cond = condInAddText(res);
     if (cond) {
-	lines.push('<details>', `<summary condInAdd="${cond}">`);
+	lines.push('<details>');
+	lines.push(`<summary class="ressmry" condInAdd="${cond}">`);
     } else {
 	lines.push('<details>', '<summary>');
     }
@@ -304,10 +305,13 @@ function detailsText(res, tm) {
 
 		// !! 追加スキルボタンの処理が入る予定
 		
-	    } else if (x[0] == '!') { // 先頭!は強制で先頭
-		(row || lines).unshift(x.slice(1));
-	    } else {
-		(row || lines).push(x);
+	    } else { // 見出し
+		var st = 'text-decoration:underline';
+		if (x[0] == '!') { // 先頭!は強制で先頭
+		    (row || lines).unshift(spanWithStyle(x.slice(1), st));
+		} else {
+		    (row || lines).push(spanWithStyle(x, st));
+		}
 	    }
 	} else { // [フラグ, GLPK変数]
 	    line = [];
