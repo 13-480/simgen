@@ -1,10 +1,14 @@
 // -*- mode:js; mode:outline-minor -*-
+// 検索ボタン (not 追加検索) で起動されるworkerが代入される
 var job;
-var glpkmaximize, glpksubj, glpkgenerals; // simgen.rbで生成したデータ
-var vname; // GLPK変数=>変数名の辞書
-var summary; // SUMMARYセクションそのままの配列
-var details; // SUMMARYセクションそのままの配列
-var localstoragekey = 'simgen';
+//// simgen.rbで生成されhtmlで定義される定数
+var glpkmaximize, glpksubj, glpkgenerals; // GLPKソースのうち確定部分
+var vname; 	// GLPK変数=>変数名の辞書
+var group; 	// グループ名=>[GLPK変数]の辞書
+var summary; 	// SUMMARYセクションそのままの配列
+var details; 	// SUMMARYセクションそのままの配列
+
+var localstoragekey = 'simgen'; // !! 未対応
 
 //// 検索ボタン押下時の処理
 // 検索ボタンのイベントハンドラ
@@ -156,6 +160,17 @@ function get_glpk_add() {
     return res.join("\n");
 }
 
+// 追加スキル検索時に、装備固定の関係式を文字列で返す。
+// btnを起点に要素を親へ辿ったてsummary要素で n* と指定されているもので、
+// 結果で0でないものが対象。
+// insertResultするときに、summary要素に保存してある。
+function get_glpk_more(btn) {
+    var elt = btn;
+    while (elt.tagName != 'DETAILS') { elt = elt.parentNode; }
+    // 多分[0]がsummary要素
+    return elt.children[0].getAttribute('condInMore') + "\n";
+}
+
 // UIの範囲指定からBonudsの式を作り、配列で返す
 function get_glpk_bounds() {
     var res = ['Bounds'];
@@ -218,13 +233,11 @@ function log_if_glpkshow(value){
 function insertResult(res, tm) {
     var lines = [];
     // summary部分
-    var cond = condInAddText(res);
-    if (cond) {
-	lines.push('<details>');
-	lines.push(`<summary class="ressmry" condInAdd="${cond}">`);
-    } else {
-	lines.push('<details>', '<summary>');
-    }
+    var cond = condInAddMoreText(res);
+    var condstr = cond[0] ? ` condInAdd="${cond[0]}"` : '';
+    var cond2str = cond[1] ? ` condInMore="${cond[1]}"` : '';
+    lines.push('<details>');
+    lines.push(`<summary class="ressmry"${condstr}${cond2str}>`);
     lines.push(summaryText(res, tm));
     lines.push('</summary>');
     // details部分
@@ -273,8 +286,8 @@ function summaryText(res, tm) {
 }
 
 // summaryで n* と指定されているもので結果で0でないものを、
-// 追加検索用の不等式にして返す。なければnull
-function condInAddText(res) {
+// 追加検索用の不等式と、追加スキル用の等式にして返す。なければnull
+function condInAddMoreText(res) {
     var cond = [];
     var condVal = 0;
     for (var x of summary) { // [フラグ, GLPK変数]か幅指定
@@ -283,8 +296,10 @@ function condInAddText(res) {
 	    cond.push(x[1]);
 	}
     }
-    if (cond.length == 0) { return null; }
-    return cond.join(' + ') + " <= " + String(condVal-1);
+    if (cond.length == 0) { return [null, null]; }
+    var condstr = cond.join(' + ') + " <= " + String(condVal-1);
+    var cond2str = cond.join(" = 1\n") + " = 1\n";
+    return [condstr, cond2str]
 }
 
 // detailsのテキスト生成
@@ -302,9 +317,6 @@ function detailsText(res, tm) {
 		}
 		row = carryover;
 		carryover = [];
-
-		// !! 追加スキルボタンの処理が入る予定
-		
 	    } else if (x == 'time') { // 時刻
 		(row || lines).push(String((tm/1000).toFixed(3)) + 'sec');
 	    } else { // 見出し
@@ -315,6 +327,16 @@ function detailsText(res, tm) {
 		    (row || lines).push(spanWithStyle(x, st));
 		}
 	    }
+	} else if (x[0] == 'more') { // 追加スキルボタン
+	    // 追加スキルで検索するGLPK変数=>当該結果の値の辞書を作成
+	    var h = {};
+	    for (var v of group[x[2]]) {
+		h[v] = res[v];
+	    }
+	    var hstr = JSON.stringify(h);
+	    var str = '<button onclick="doMoreSkillBtn(event)" ' +
+		`vs='${hstr}'>` + x[1] + '</button>';
+	    (row || lines).push(str);
 	} else { // [フラグ, GLPK変数]
 	    line = [];
 	    // 0で表示抑制
@@ -389,6 +411,53 @@ function clearResult() {
     respane.innerHTML = '';
     updateQueryBtn('run/add');
     saveUIparam();
+}
+
+//// 追加スキル検索
+// ハンドラ
+function doMoreSkillBtn(ev) {
+    var btn = ev.target;
+    btn.disabled = 'true';
+    // 確定しているGLPKソースを作成
+    var glpktxt1 = glpksubj + get_glpk_ui();
+    var glpktxt2 = get_glpk_bounds() + glpkgenerals;
+    // 検索対象の変数グループ取得
+    var vs = JSON.parse(btn.getAttribute('vs'));
+    // 非同期にglpk実行 (非同期にするため、グループごと渡す)
+    doMoreSkill2(vs, btn, glpktxt1, glpktxt2);
+}
+
+// 非同期にglpkで追加スキルを検索し、結果を挿入
+function doMoreSkill2(vs, btn, glpktxt1, glpktxt2) {
+    var ks = Object.keys(vs);
+    if (ks.length == 0) { return; }
+    // スキル名を表示
+    var elt = document.createElement('span');
+    elt.innerHTML = vname[ks[0]];
+    btn.parentNode.appendChild(elt);
+    // 検索時のglpkテキストを取得
+    var glpktxt =
+	`Maximize\n${ks[0]}\n` + glpktxt1 + get_glpk_more(btn) + glpktxt2;
+    // glpk実行
+    var job = new Worker("simgenworker.js");
+    job.onmessage = function(e) {
+	if (e.data.action == 'done') {
+	    job.terminate();
+	    job = null;
+	    var lv = e.data.result[ks[0]];
+	    if (lv > vs[ks[0]]) {
+		btn.parentNode.appendChild(document.createTextNode(`Lv${lv}`));
+		btn.parentNode.appendChild(document.createElement('br'));
+	    } else {
+		btn.parentNode.lastElementChild.remove();
+	    }
+	    delete vs[ks[0]];
+	    doMoreSkill2(vs, btn, glpktxt1, glpktxt2);
+	} else if (e.data.action == 'log') {
+	    // log_if_glpkshow(e.data.message);
+	}
+    };
+    job.postMessage({action: 'load', data: glpktxt, mip: true});
 }
 
 //// localstrageの記録と回復
