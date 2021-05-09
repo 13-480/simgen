@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-# class Parse で Array の扱いを変えた
-# UIセクションとINDUCEセクションを発展・統合
-
 #### 正規表現
-avoidchars = '-+=<>()#?:"\'\\[\\]{},\\s'
+avoidchars = '-+=<>()%#?:"\'\\[\\]{},\\s'
 # グループ名
 GROUPre = Regexp.new('^{[^%1$s\d][^%1$s]*}' % avoidchars)
 GROUPSUMre = Regexp.new(GROUPre.to_s + '\.sum')
@@ -13,10 +10,7 @@ VARre = Regexp.new('^([^%1$s\d][^%1$s]*)(?::(%2$s))?' % [avoidchars, GROUPre.sou
 STRre = /^[^\s#<>\\[\\]]+/
 STRre0 = /^[^\n#<>]+/
 
-#### エラー表示
-def err(*xs)
-  xs.each {|x| $stderr.puts x.inspect }
-end
+#### 読み易い表示
 def pp(x, delim = "\n")
   case x
   when Array
@@ -40,12 +34,14 @@ class Parser
   attr_accessor :lines
   # 空行、コメント行
   EMPTYre = /^\s*(#.*)?$/
+
   # 入力の登録
   def initialize(lines)
     @linessave = lines.dup
     @lines = lines
   end
-  # エラー報告 # !! ここ直したい
+
+  # エラー報告
   def err(str)
     lineno = @linessave.size - @lines.size
     pos = @linessave[lineno].size - @lines[0].size
@@ -53,6 +49,7 @@ class Parser
     $stderr.puts '| ' + @linessave[lineno][0...pos]
     $stderr.puts '| ' + @lines[0]
   end
+
   # 空行、コメントをスキップする
   def skip
     while ! @lines.empty? && EMPTYre =~ @lines[0]
@@ -60,17 +57,20 @@ class Parser
     end
     true
   end
+
   # 行末まで何もないことを確認して捨てる
   def discard
     return false if EMPTYre !~ @lines[0].lstrip
     @lines.shift
     true
   end
+
   # 終了判定
   def empty?
     self.skip
     @lines.empty?
   end
+
   # 次に指定のものがあるかチェック。StringとRegexpのみ受け付ける
   def check(x)
     @lines[0] = @lines[0].lstrip
@@ -83,6 +83,7 @@ class Parser
       raise x.inspect
     end
   end
+
   # 1行パーズ
   # syn = [要素, 要素, ...]
   # 要素は、
@@ -103,7 +104,7 @@ class Parser
     if ! self.discard then
       # @lines[0] = linesave
       self.err('Garbage at eol')
-        raise ParseError # これはこれでいいか
+        raise ParseError # 強制終了
     end
     res
   end
@@ -220,7 +221,6 @@ class SimParser
        [/more/, STRre, GROUPre],
        [/[nv*]+/, @varp],
        [/[nv*]+/, GROUPre],
-       # !! 追加スキルボタンを作る予定
       ],
     ]
   end
@@ -367,14 +367,14 @@ class SimParser
     @group0.flatten.each {|x|
       if ! grp && GROUPre !~ x then
         @psr.err('group section not started with group name')
-        raise ParseError # これはこれでいいか
+        raise ParseError # 強制終了
       end
       if GROUPre =~ x then # グループ名
         grp = x
       elsif (v_line = parse_var(x)) then # 変数名
         @group[grp] |= v_line[0..0]
       else
-        raise ParseError # これはこれでいいか
+        raise ParseError # 強制終了
       end
     }
     # 入れ子の処理
@@ -406,7 +406,7 @@ class SimParser
       secno += 1 while secno < @sec.size && ! @psr.parse([@sec[secno][0]])
       if secno >= @sec.size then
         @psr.err('bad section tag')
-        raise ParseError # これはこれでいいか
+        raise ParseError # 強制終了
       end
       # そのセクションでの構文解析
       ary, syns = @sec[secno][1], @sec[secno][2..-1]
@@ -425,10 +425,10 @@ class SimParser
 end # of class SimParser
 
 #### html生成
-# SimParserので収集したのは以下
+# SimParserで収集したのは以下
 # @meta     ['title', タイトル]
 # @group    グループ名=>[変数名]
-# @ui      [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
+# @ui       [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
 # @query    [ボタンテキスト, 中止, 追加, 変数名]
 # @relation [1次式, op, 1次式, ...]
 # @unlock   [変数名1, 数値a, 変数名2, 数値b, 数値c]
@@ -442,7 +442,8 @@ end # of class SimParser
 #		@ui2からは何も登録されず、実行時に追加される。
 # @generals	Array。@varと@unlockから確定
 # 以上はhtmlファイルに記録される。
-# @uiの情報は、すべてhtmlに書き込まれ、実行時にSubject toに追記される
+# @uiの情報は、すべてhtmlに書き込まれ、実行時にSubject toに追記される。
+# 他に、@varや@groupの情報もhtmlに書き込まれる。
 # Boundsはすべて実行時に生成。Binaryは使わない。
 
 class GenHTML
@@ -657,7 +658,7 @@ EOS
     when :checkbox # チェックボックス
       fstr = (f==:max) ? 1 : 0
       "<input type=checkbox f=#{fstr}>"
-    when Array
+    when Array # プルダウン
       fstr = (f==:max) ? a.max : a.min
       [ "<select f=#{fstr}>",
         a.map {|x| '<option value="%s">%s</option>' % [x, x] },
@@ -667,13 +668,13 @@ EOS
     end
   end
 
-  #
+  # 変数名かグループ名・変数名集合のUI
   def gen_html_ui_varui(v, visible = false)
     line = []
     if v[0] != '{' then # 変数名
       text = visible ? v : ''
       line.push '<span v=%s>%s</span>' % [@psr.var[v], text]
-    else # グループ名
+    else # グループ名・変数名集合 (後者もグループにされている)
       line.push '<select>'
       @psr.group[v].map {|x|
         line.push '<option value="%s">%s</option>' % [@psr.var[x], x] }
@@ -777,23 +778,10 @@ if $0 == __FILE__ then
   lines = ARGF.to_a.map {|line| line.encode('UTF-8', 'UTF-8') }
   psr = SimParser.new(lines)
   psr.parse
-  # p psr.meta
   # $stderr.puts 'UI', pp(psr.ui)
-  # $stderr.puts psr.query.inspect
   # $stderr.puts '@group', pp(psr.group)
   # $stderr.puts 'RELATION', pp(psr.relation)
-  # p psr.unlock
-  # $stderr.puts psr.summary.inspect
-  # $stderr.puts psr.details.inspect
   # $stderr.puts 'GROUP', pp(psr.group)
-  # $stderr.puts 'var', pp(psr.var)
-  # glpk = GenGLPK.new(psr)
-  # glpk.gen_glpk
-  # $stderr.puts 'maximize', pp(glpk.maximize)
-  # $stderr.puts 'subj', pp(glpk.subj)
-  # $stderr.puts 'bounds', pp(glpk.bounds)
-  # $stderr.puts 'generals', pp(glpk.generals)
-  # $stderr.puts 'induce', pp(glpk.induce)
   gh = GenHTML.new(psr)
   puts gh.gen_html
 end
