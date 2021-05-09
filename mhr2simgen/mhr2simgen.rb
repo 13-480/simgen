@@ -304,7 +304,7 @@ Lv2空きスロ = Lv2以上空きスロ - Lv3以上空きスロ
 Lv3空きスロ = Lv3以上空きスロ
 
 <QUERY>
-検索 検索中止 追加検索 最大化式
+query 検索 検索中止 追加検索 最大化式
 
 <SUMMARY>
 width:50px
@@ -339,3 +339,4 @@ newcolumn 所要時間
 time
 
 newcolumn 追加スキル
+more 追加スキル {スキル}
