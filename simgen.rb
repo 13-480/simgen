@@ -201,7 +201,7 @@ class SimParser
        [@varp, ['*', @varp]],
       ],
       ['<QUERY>', @query,
-       [STRre, STRre, STRre, @varp],
+       [/query/, STRre, STRre, STRre, @varp],
       ],
       ['<RELATION>', @relation,
        [@formp, ['*', /<=|>=|=/, @formp]],
@@ -217,6 +217,7 @@ class SimParser
       ['<DETAILS>', @details,
        [/newcolumn/, STRre0],
        [/time/],
+       [/more/, STRre, GROUPre],
        [/[nv*]+/, @varp],
        [/[nv*]+/, GROUPre],
        # !! 追加スキルボタンを作る予定
@@ -478,6 +479,8 @@ class GenHTML
     res.push(gen_html_details)
     # GLPK変数=>変数名の辞書
     res.push(gen_html_var)
+    # グループ名=>[GLPK変数]の辞書
+    res.push(gen_html_group)
     # フッタ
     res.push('</body>', '</html>')
     res
@@ -486,9 +489,9 @@ class GenHTML
   # glpkのデータを整える
   def setup_glpk
     # query -> @maximize
-    v = @psr.var[@psr.query[0][3]]
+    v = @psr.var[@psr.query[0][4]]
     @maximize.push v
-
+    
     # unlock -> @subj。補助変数は@psr.varに新規に登録
     @psr.unlock.each {|x| # x は [変数名1, 数値a, 変数名2, 数値b, 数値c]
       next if x.size != 5 # 上限解放指定以外は無視 (今はないけど)
@@ -683,7 +686,8 @@ EOS
   BTN1 = '<button id=querybtn onclick="doQueryBtn()" run="%s" stop="%s" add="%s">%s</button>'
   BTN2 = '<button onclick="clearResult()">検索結果の全消去</button>'
   def gen_html_btn
-    run, stop, add, v = @psr.query[0] # 1個と信じる
+    q, run, stop, add, v = @psr.query.assoc('query')
+    raise 'no query button'  if ! q
     [ '<hr>',
       '<!-- 検索ボタン -->',
       BTN1 % [run, stop, add, run],
@@ -738,9 +742,11 @@ EOS
         res.push("'#{x[0].strip}',")
       elsif x[0] == 'newcolumn' then # newcolumn
         res.push("'newcolumn',", "'#{x[1].strip}',")
-      elsif GROUPre =~ x[1] then # グループ
+      elsif x[0] == 'more' then # more
+        res.push("['more', '#{x[1]}', '#{x[2]}'],") 
+      elsif GROUPre =~ x[1] then # [フラグ, グループ]
         @psr.group[x[1]].each {|v| res.push("['#{x[0]}', '#{@psr.var[v]}'],") }
-      else # 変数
+      else # [フラグ, 変数]
         res.push("['#{x[0]}', '#{@psr.var[x[1]]}']," )
       end
     }
@@ -750,14 +756,23 @@ EOS
   # GLPK変数=>変数名の辞書
   def gen_html_var
     res = ['<script>', 'var vname = {']
-    @psr.var.each_slice(5) {|x|
+    @psr.var.each_slice(4) {|x|
       res.push x.map {|k,v| "#{v}:'#{k}'," }.join(' ') }
     res[-1][-2..-1] == ''
     res.push('};', '</script>')
   end
+
+  # グループ名=>[GLPK変数]の辞書
+  def gen_html_group
+    res = ['<script>', 'var group = {']
+    @psr.group.each {|k,vs|
+      res.push("'%s':[%s]," % [k, vs.map {|v| "'#{@psr.var[v]}'" }.join(',') ])}
+    res[-1][-2..-1] == ''
+    res.push('};', '</script>')      
+  end
 end # of class GenHTML
 
-# 直に呼ばれたらARGFからソースを読み、htmlを出力する
+#### 直に呼ばれたらARGFからソースを読み、htmlを出力する
 if $0 == __FILE__ then
   lines = ARGF.to_a.map {|line| line.encode('UTF-8', 'UTF-8') }
   psr = SimParser.new(lines)
