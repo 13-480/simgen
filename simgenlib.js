@@ -37,7 +37,7 @@ function updateQueryBtn(val) {
     var d = document.querySelector('#resultpane details');
     if (d) {
 	btn.textContent = btn.getAttribute('add');
-    }	else {
+    } else {
 	btn.textContent = btn.getAttribute('run');
     }
 }
@@ -161,9 +161,8 @@ function get_glpk_add() {
 }
 
 // 追加スキル検索時に、装備固定の関係式を文字列で返す。
-// btnを起点に要素を親へ辿ったてsummary要素で n* と指定されているもので、
-// 結果で0でないものが対象。
-// insertResultするときに、summary要素に保存してある。
+// summaryで n* と指定されているもので、結果で0でないものが対象。
+// insertResultするときに、btnを起点に要素を親へ辿ったsummary要素に保存してある。
 function get_glpk_more(btn) {
     var elt = btn;
     while (elt.tagName != 'DETAILS') { elt = elt.parentNode; }
@@ -312,16 +311,14 @@ function detailsText(res, tm) {
     for (var x of details) {
 	if (! (x instanceof Array)) { // 見出し等
 	    if (x == 'newcolumn') { // 列生成
-		if (row) { // 前の列を確定
-		    lines.push(vbox(row));
-		}
+		if (row) { lines.push(vbox(row)); } // 前の列を確定
 		row = carryover;
 		carryover = [];
 	    } else if (x == 'time') { // 時刻
 		(row || lines).push(String((tm/1000).toFixed(3)) + 'sec');
 	    } else { // 見出し
 		var st = 'text-decoration:underline';
-		if (x[0] == '!') { // 先頭!は強制で先頭
+		if (x[0] == '!') { // 文字列の先頭!は強制で列先頭
 		    (row || lines).unshift(spanWithStyle(x.slice(1), st));
 		} else {
 		    (row || lines).push(spanWithStyle(x, st));
@@ -330,9 +327,7 @@ function detailsText(res, tm) {
 	} else if (x[0] == 'more') { // 追加スキルボタン
 	    // 追加スキルで検索するGLPK変数=>当該結果の値の辞書を作成
 	    var h = {};
-	    for (var v of group[x[2]]) {
-		h[v] = res[v];
-	    }
+	    for (var v of group[x[2]]) { h[v] = res[v]; }
 	    var hstr = JSON.stringify(h);
 	    var str = '<button onclick="doMoreSkillBtn(event)" ' +
 		`vs='${hstr}'>` + x[1] + '</button>';
@@ -340,17 +335,11 @@ function detailsText(res, tm) {
 	} else { // [フラグ, GLPK変数]
 	    line = [];
 	    // 0で表示抑制
-	    if (x[0].includes('*') && res[x[1]] == 0) {
-		continue;
-	    }
+	    if (x[0].includes('*') && res[x[1]] == 0) { continue; }
 	    // 変数名
-	    if (x[0].includes('n')) {
-		line.push(vname[x[1]]);
-	    }
+	    if (x[0].includes('n')) { line.push(vname[x[1]]); }
 	    // 値
-	    if (x[0].includes('v')) {
-		line.push(res[x[1]]);
-	    }
+	    if (x[0].includes('v')) { line.push(res[x[1]]); }
 	    // 範囲一杯かどうかで判断して現在列か次の列に追加する
 	    if (line.length > 0) {
 		if (res[x[1]] > 0 && fullrng.has(x[1])) {
