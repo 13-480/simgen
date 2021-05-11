@@ -196,6 +196,7 @@ class SimParser
       ['<META>', @meta,
        [/title/, STRre0],
        [/glpk/, STRre],
+       [/localstrage/, STRre],
       ],
       ['<GROUP>', @group0,
        [GROUPre],
@@ -426,7 +427,7 @@ end # of class SimParser
 
 #### html生成
 # SimParserで収集したのは以下
-# @meta     ['title', タイトル]
+# @meta     ['title', タイトル], ['localstrage', キー]
 # @group    グループ名=>[変数名]
 # @ui       [下限, 上限, *, 寄与元変数, 寄与先数値a, 寄与先変数a, ..]か幅指定等
 # @query    [ボタンテキスト, 中止, 追加, 変数名]
@@ -474,6 +475,8 @@ class GenHTML
     res.push('<!-- 検索結果 -->', '<div id=resultpane>', '</div>')
     # GenGLPKで生成するデータ
     res.push(gen_html_glpk_data)
+    # Local strage key
+    res.push(gen_html_localstragekey)
     # SUMMARYセクションのデータ
     res.push(gen_html_summary)
     # DETAILSセクションのデータ
@@ -713,6 +716,16 @@ EOS
     res.push('var glpkmaximize = `', @maximize, '`;')
     res.push('var glpksubj = `', @subj, '`;')
     res.push('var glpkgenerals = `', @generals, '`;')
+    res.push('</script>')
+  end
+
+  # Local strage keyのデータ
+  def gen_html_localstragekey
+    loc = @psr.meta.assoc('localstrage')
+    key = loc ? loc[1] : 'simgen'
+    res = []
+    res.push('<script>')
+    res.push(`var glpklocalstragekey = ${key}`)
     res.push('</script>')
   end
 
