@@ -7,7 +7,7 @@ var vname; 	// GLPK変数=>変数名の辞書
 var group; 	// グループ名=>[GLPK変数]の辞書
 var summary; 	// SUMMARYセクションそのままの配列
 var details; 	// SUMMARYセクションそのままの配列
-var glpklocalstragekey; // Local strage key
+var glpklocalstoragekey; // Local storage key
 
 //// 検索ボタン押下時の処理
 // 検索ボタンのイベントハンドラ
