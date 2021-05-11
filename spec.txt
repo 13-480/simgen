@@ -51,7 +51,8 @@ TODO: 検索結果をピンどめする機能
 | localstorage キー	localstrageのキー指定
 
 TODO: urlまだやってない
-TODO: localstrageまだやってない
+TODO: このような大域な情報は環境変数的なものにまとめたい
+TODO: localstorageをJSON.stringifyしてコピペできるように。
 
 *** GROUPセクション
 変数のグループを指定
