@@ -7,8 +7,7 @@ var vname; 	// GLPK変数=>変数名の辞書
 var group; 	// グループ名=>[GLPK変数]の辞書
 var summary; 	// SUMMARYセクションそのままの配列
 var details; 	// SUMMARYセクションそのままの配列
-
-var localstoragekey = 'simgen'; // !! 未対応
+var glpklocalstragekey; // Local strage key
 
 //// 検索ボタン押下時の処理
 // 検索ボタンのイベントハンドラ
@@ -474,12 +473,12 @@ function saveUIparam() {
 	}
     }
     // 記録
-    localStorage[localstoragekey] = JSON.stringify(res);
+    localStorage[glpklocalstoragekey] = JSON.stringify(res);
 }
 
 // UIのパラメータをlocal storageから回復
 function loadUIparam() {
-    var str = localStorage[localstoragekey];
+    var str = localStorage[glpklocalstoragekey];
     var dic = str ? JSON.parse(str) : {};
     var uis = document.querySelectorAll('.ui');
     for (var elt of uis) {
