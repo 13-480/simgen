@@ -725,7 +725,7 @@ EOS
     key = loc ? loc[1] : 'simgen'
     res = []
     res.push('<script>')
-    res.push(`var glpklocalstragekey = ${key}`)
+    res.push("var glpklocalstoragekey = '#{key}';")
     res.push('</script>')
   end
 
