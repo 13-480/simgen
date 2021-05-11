@@ -235,6 +235,7 @@ __END__
 <META>
 title mhrシミュ
 # glpk show
+localstrage simgenMHR
 
 <UI>
 width:150px
