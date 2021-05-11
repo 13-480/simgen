@@ -13,7 +13,7 @@
 
 \title{スキルシミュレータメーカーのチュートリアル
 \\
-{\small 1版. 2021年4月1日}
+{\small 2版. 2021年5月11日}
 }
 \date{}
 \author{5chスキルシミュレータ開発Ver.13の480}
@@ -23,6 +23,9 @@
 \tableofcontents
 
 \section{はじめに} %%%%%%%%%%%%%%%%
+まず、1版から2版に改訂した際に、
+入力ファイルの文法が大幅に変更され、互換性がなくなりましたので、ご注意下さい。
+
 この文書はいわゆる「スキルシミュメーカー」%
 \footnote{スキルシミュツクールでも良いですが、
 ツクールがKADOKAWAの商標なのでやめました。}%
@@ -54,8 +57,8 @@ Cやjavascriptのプログラムは不要です。
 
 このチュートリアルでは、
 シミュレータを生成するための独自言語の完全な仕様を説明することはせずに、
-ごく簡単なシミュレータを生成するための入力ファイル (22行) から始めて、
-徐々に複雑なもの (最後は78行) の例をもとに説明をします。
+ごく簡単なシミュレータを生成するための入力ファイル (18行) から始めて、
+徐々に複雑なもの (最後は75行) の例をもとに説明をします。
 長くなりますが各段階で入力ファイル全文を掲載し、
 説明は前段階にはなかった部分について行います。
 
@@ -85,24 +88,20 @@ Cやjavascriptのプログラムは不要です。
 
 {\footnotesize\begin{mdframed}\begin{Verbatim}
 # チュートリアルその1
-[META]
+<META>
 title チュートリアル1 (最初のシミュ)
 
-[INDUCE]
-ポロシャツ  ->  防御力  1
-パーカー    ->  防御力  2
+<UI>
+(0..C) ポロシャツ -> 1 防御力
+(0..C) パーカー   -> 2 防御力
 
-[RELATION]
+<RELATION>
 ポロシャツ + パーカー <= 1
 
-[UI]
-(0..C) ポロシャツ
-(0..C) パーカー
+<QUERY>
+query 検索 検索中止 追加検索 防御力
 
-[QUERY]
-検索 検索中止 追加検索 防御力
-
-[SUMMARY]
+<SUMMARY>
 v 防御力
 n* ポロシャツ
 n* パーカー
@@ -122,7 +121,7 @@ n* パーカー
 
 \paragraph{METAセクション}~\medskip
 {\footnotesize\begin{mdframed}\begin{Verbatim}
-[META]
+<META>
 title チュートリアル1 (最初のシミュ)
 \end{Verbatim}
 \end{mdframed}}
@@ -131,33 +130,49 @@ title チュートリアル1 (最初のシミュ)
 titleで始まる行で、生成されるウェブページのタイトルを指定します。
 
 \begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig00.png}}
+\frame{\includegraphics[scale=0.25]{./fig/figa00.png}}
 \end{center}
 
-\paragraph{INDUCEセクション}~\medskip
+\paragraph{UIセクション}~\medskip
 {\footnotesize\begin{mdframed}\begin{Verbatim}
-[INDUCE]
-ポロシャツ  ->  防御力  1
-パーカー    ->  防御力  2
+<UI>
+(0..C) ポロシャツ -> 1 防御力
+(0..C) パーカー   -> 2 防御力
 \end{Verbatim}
 \end{mdframed}}
 \medskip
 
-各装備が、スキル、スロット、属性耐性等のパラメータを
-どれだけ発動するかを指定します%
+各装備の所持数や、スキル、スロット、属性耐性等のパラメータを
+どれだけ発動するかを指定します。
+
+この例の「\texttt{(0..C)}」の部分は「ポロシャツ」あるいは「パーカー」の所持数の指定です。
+このような「\texttt{(最小値..最大値)}」という記述は、
+その装備をいくつ装備できるかの最小値・最大値を指定します。
+%
+最大値の「\texttt{C}」はシミュレータ上に表示される
+チェックボックスで指定されるという意味です。
+チェックボックスはチェックされていれば1、いなければ0を表します。
+
+\begin{center}
+\frame{\includegraphics[scale=0.25]{./fig/figa01.png}}
+\end{center}
+
+また、「\texttt{ -> 1 防御力}」の部分は、
+ポロシャツを1つ装備すると、スキル等がどれだけ発動するかを指定しています。
+この例では、ポロシャツの防御力が1、パーカーの防御力が2と指定しています%
 \footnote{
 この例では、実際には、
 「\texttt{防御力 = ポロシャツ + 2 パーカー」}
-という式を、RELATIONセクションに指定するのと同じです。
-RELATIONセクションだけで済むのにINDUCEセクションを設ける理由は、
+という式を、RELATIONセクションに記述するのと同じです。
+RELATIONセクションだけで済むのにUIセクションでも指定できるようにする理由は、
 現在2種類であるフクの種類が大量になった場合、この式が長大になってしまうので、
 これを避けたいからです。
 }。
-この例では、ポロシャツの防御力が1、パーカーの防御力が2と指定しています。
+
 
 \paragraph{RELATIONセクション}~\medskip
 {\footnotesize\begin{mdframed}\begin{Verbatim}
-[RELATION]
+<RELATION>
 ポロシャツ + パーカー <= 1
 \end{Verbatim}
 \end{mdframed}}
@@ -170,53 +185,29 @@ RELATIONセクションだけで済むのにINDUCEセクションを設ける理
 装備できるのはどちらか一方、
 あるいは装備なしだけが可能であることを意味しています。
 
-\paragraph{UIセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}
-[UI]
-(0..C) ポロシャツ
-(0..C) パーカー
-\end{Verbatim}
-\end{mdframed}}
-\medskip
-
-UIセクションでは、
-装備の所持数等を設定するプルダウンメニュー、テキストボックス、
-チェックボックスを、ブラウザ上にどう表示するかを指定します。
-
-「\texttt{(0..C) ポロシャツ}」は、
-ポロシャツ所持数の最小値が0で、
-最大値はシミュレータ上に表示されるチェックボックスで指定されるという意味です。
-チェックボックスはチェックされていれば1、いなければ0を表します。
-数値が固定されていて、チェックボックス等で設定する必要のない
-最小値の0に対応するものは、シミュレータに表示されません。
-
-\begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig01.png}}
-\end{center}
-
 \paragraph{QUERYセクション}~\medskip
 {\footnotesize\begin{mdframed}\begin{Verbatim}
-[QUERY]
-検索 検索中止 追加検索 防御力
+<QUERY>
+query 検索 検索中止 追加検索 防御力
 \end{Verbatim}
 \end{mdframed}}
 \medskip
 
 検索ボタンは状態によって表示されるテキストが変わるので、それを指定します。
-4つある文字列の最初の3つは、順に、
+queryに続いて4つある文字列の最初の3つは、順に、
 初期状態の表示文字列、検索中の表示文字列、
 検索が終わって検索結果が画面に残っているときの表示文字列です。
 
-4つある文字列の最後は、何を最大化して検索するかを指定します。
+最後の文字列は、何を最大化して検索するかを指定します。
 つまり、条件を満たすものたちのうち、防御力最大のものを検索するという指定です。
 
 \begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig02.png}}
+\frame{\includegraphics[scale=0.25]{./fig/figa02.png}}
 \end{center}
 
 \paragraph{SUMMARYセクション}~\medskip
 {\footnotesize\begin{mdframed}\begin{Verbatim}
-[SUMMARY]
+<SUMMARY>
 v 防御力
 n* ポロシャツ
 n* パーカー
@@ -246,7 +237,7 @@ n* パーカー
 (UIセクションでの指定により1であることが確定) 名前だけ表示します。
 
 \begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig03.png}}
+\frame{\includegraphics[scale=0.25]{./fig/figa03.png}}
 \end{center}
 
 \section{スキルとスキル条件の指定} %%%%%%%%%%%%%%%%
@@ -270,69 +261,51 @@ n* パーカー
 入力ファイルの後に記す内容の説明は、変更のあった場所に限定します。
 \medskip
 
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
 # チュートリアルその2
-[META]
+<META>
 title チュートリアル2 (スキルとスキル条件の指定)
 
-[INDUCE]
-ポロシャツ  ->  防御力  1!R!-,  攻撃  1
-パーカー    ->  防御力  2
+<UI>
+(0..C) ポロシャツ -> 1 防御力|R, 1 攻撃
+(0..C) パーカー   -> 2 防御力
+|R|-br
+|R([0 1 2 3 4 5]..5) 攻撃
+|R(0?..) 防御力
 
-[RELATION]
+<RELATION>
 ポロシャツ + パーカー <= 1
 
-[UI] !R!-width:150px
-(0..C) ポロシャツ
-(0..C) パーカー
-!R!-[UI] br
-!R!-([0 1 2 3 4 5]..5) 攻撃
-!R!-(0?..) 防御力
+<QUERY>
+query 検索 検索中止 追加検索 防御力
 
-[QUERY]
-検索 検索中止 追加検索 防御力
-
-[SUMMARY]
+<SUMMARY>
 v 防御力
 n* ポロシャツ
 n* パーカー
 
-!R!-[DETAILS] newrow
-!R!-[DETAILS] スキル
-!R!-nv* 攻撃
+|R<DETAILS>
+|R|-newcolumn スキル
+|R|-nv* 攻撃
 \end{Verbatim}
 \end{mdframed}}
 
 \subsection{入力ファイルの内容の説明}
 
-\paragraph{INDUCEセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[INDUCE]
-ポロシャツ  ->  防御力  1!R!-,  攻撃  1
-パーカー    ->  防御力  2
-\end{Verbatim}
-\end{mdframed}}
-\medskip
-
-ポロシャツが攻撃Lv1を発動するので、ポロシャツの行に攻撃スキルの指定を
-追加します。
-このように、複数のものを発動するときは、カンマ区切りで記述します。
-
 \paragraph{UIセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[UI] !R!-width:150px
-(0..C) ポロシャツ
-(0..C) パーカー
-!R!-[UI] br
-!R!-([0 1 2 3 4 5]..5) 攻撃
-!R!-(0?..) 防御力
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<UI>
+(0..C) ポロシャツ -> 1 防御力|R, 1 攻撃
+(0..C) パーカー   -> 2 防御力
+|R|-br
+|R([0 1 2 3 4 5]..5) 攻撃
+|R(0?..) 防御力
 \end{Verbatim}
 \end{mdframed}}
 \medskip
 
-「\texttt{[UI] width:150px}」は、UI部品の幅を指定します。
-この指定により、UI部品をきれいに揃えることができます。
-指定を解除するには 「\texttt{[UI] nowidth}」 と記述します。
+ポロシャツが攻撃Lv1を発動するので、ポロシャツの行に攻撃スキルの指定を追加します。
+このように、複数のものを発動するときは、カンマ区切りで記述します。
 
 「\texttt{[UI] br}」は改行です。
 次のUI部品は、新しい行から表示されます。
@@ -352,36 +325,32 @@ n* パーカー
 また、最大値の記載がありませんが、その場合は上限なしとなります。
 
 \begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig04.png}}
+\frame{\includegraphics[scale=0.25]{./fig/figa04.png}}
 \end{center}
 
 \paragraph{DETAILSセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-!R!-[DETAILS] newrow
-!R!-[DETAILS] スキル
-!R!-nv* 攻撃
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+|R<DETAILS>
+|R|-newcolumn スキル
+|R|-nv* 攻撃
 \end{Verbatim}
 \end{mdframed}}
 \medskip
 
-先の例の検索結果表示は、
+前節の例の検索結果表示は、
 検索結果の「見出し」部分の表示を指定するSUMMARYセクションのみでした。
 「見出し」部分をクリックすると、折りたたまれている「詳細」部分が現れますが、
 DETAILSセクションでは、「詳細」部分の表示を指定します。
 
 詳細部分は、段組表示が基本で、
-「\texttt{[DETAILS] newrow}」は新しい段の開始です。
-
-「\texttt{[DETAILS] スキル}」はその段の1行目に表示する文字列の指定です%
-\footnote{
-1行目でなくても任意の位置で文字列の表示が可能です
-}。
+「\texttt{newcolum スキル}」は新しい段の開始で、
+1行目に「スキル」の見出しを置きます。
 
 「\texttt{nv* 攻撃}」はSUMMARYセクションと同じで、
 値が0でないときに限り、攻撃の名前と値を表示します。
 
 \begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig05.png}}
+\frame{\includegraphics[scale=0.25]{./fig/figa05.png}}
 \end{center}
 
 \section{装備とスキルの種類が増えた場合の工夫} %%%%%%%%%%%%%%%%
@@ -412,74 +381,68 @@ DETAILSセクションでは、「詳細」部分の表示を指定します。
 入力ファイルの後に記す内容の説明は、変更のあった場所に限定します。
 \medskip
 
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
 # チュートリアルその3
-[META]
+<META>
 title チュートリアル3 (装備とスキルの種類が増えた場合の工夫)
 
-[INDUCE]
-!R!-フクなし    ->                        フク  1   
-ポロシャツ  ->  防御力  1,  攻撃  1!R!-,  フク  1
-パーカー    ->  防御力  2!R!-,            フク  1
-                                   
-!R!-クツなし    ->                        クツ  1
-!R!-サンダル    ->  防御力  1,            クツ  1
-!R!-スリッパ    ->  防御力  2,  解放  1,  クツ  1
+<UI>
+|R|-subsection 装備
+|R|-width:150px
+|R(0..1) フクなし:{フク}
+(0..C) ポロシャツ|R:{フク}|B -> 1 防御力, 1 攻撃
+(0..C) パーカー|R:{フク}|B   -> 2 防御力
+|R|-br
+|R(0..1) クツなし:{クツ}
+|R(0..C) サンダル:{クツ} -> 1 防御力
+|R(0..C) スリッパ:{クツ} -> 2 防御力, 1 解放
 
-[RELATION]
-!R!-フク = クツ = 1
-
-[UI] width:150px
-!R!-[UI] subsection フク
-!R!-(0..1) フクなし
-(0..C) ポロシャツ
-(0..C) パーカー
-
-!R!-[UI] subsection クツ
-!R!-(0..1) クツなし
-!R!-(0..C) サンダル
-!R!-(0..C) スリッパ
-
-!R!-[UI] subsection スキル条件・最低防御力指定
-([0 1 2 3 4 5]..5) 攻撃
-!R!-([0 1 2 3]..3) 解放
+|R|-subsection スキル条件・最低防御力指定
+([0 1 2 3 4 5]..5) 攻撃|R:{スキル}
+|R|-([0 1 2 3]..3)     解放:{スキル}
 (0?..) 防御力
 
-[QUERY]
-検索 検索中止 追加検索 防御力
+<RELATION>
+|R{フク}.sum = {クツ}.sum = 1
 
-[SUMMARY] !R!-width:50px
+<QUERY>
+query 検索 検索中止 追加検索 防御力
+
+<SUMMARY>
+|R|-width:50px
 v 防御力
-!R!-[SUMMARY] width:150px
-!R!-n* フクなし
-n* ポロシャツ
-n* パーカー
-!R!-n* クツなし
-!R!-n* サンダル
-!R!-n* スリッパ
+width:150px
+n* |R{フク}
+|R|-n* {クツ}
 
-[DETAILS] newrow
-[DETAILS] スキル
-nv* 攻撃
-!R!-nv* 解放
+<DETAILS>
+newcolumn スキル
+nv* |R{スキル}
 \end{Verbatim}
 \end{mdframed}}
 
 \subsection{入力ファイルの内容の説明}
 
-\paragraph{INDUCEセクション、RELATIONセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[INDUCE]
-!R!-フクなし    ->                        フク  1   
-ポロシャツ  ->  防御力  1,  攻撃  1!R!-,  フク  1
-パーカー    ->  防御力  2!R!-,            フク  1
-                                   
-!R!-クツなし    ->                        クツ  1
-!R!-サンダル    ->  防御力  1,            クツ  1
-!R!-スリッパ    ->  防御力  2,  解放  1,  クツ  1
+\paragraph{UI、RELATIONセクション}~\medskip
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<UI>
+|R|-subsection 装備
+|R|-width:150px
+|R(0..1) フクなし:{フク}
+(0..C) ポロシャツ|R:{フク}|B -> 1 防御力, 1 攻撃
+(0..C) パーカー|R:{フク}|B   -> 2 防御力
+|R|-br
+|R(0..1) クツなし:{クツ}
+|R(0..C) サンダル:{クツ} -> 1 防御力
+|R(0..C) スリッパ:{クツ} -> 2 防御力, 1 解放
 
-[RELATION]
-!R!-フク = クツ = 1
+|R|-subsection スキル条件・最低防御力指定
+([0 1 2 3 4 5]..5) 攻撃|R:{スキル}
+|R([0 1 2 3]..3)     解放:{スキル}
+(0?..) 防御力
+
+<RELATION>
+|R{フク}.sum = {クツ}.sum = 1
 \end{Verbatim}
 \end{mdframed}}
 \medskip
@@ -487,114 +450,63 @@ nv* 攻撃
 サンダルとスリッパが増えた分と、
 スリッパに付いている解放スキルの分を追記してあります。
 
-「フク」については、「\texttt{フク = フクなし + ポロシャツ + パーカー}」
-が生成されます。
-そして、RELATIONセクションに「\texttt{フク = 1}」とあるので、
-結局、「\texttt{フクなし + ポロシャツ + パーカー = 1}」
-が生成されていることになります%
-\footnote{
-これを直にRELATIONセクションに書いても良いですが、
-装備の数が増えたときに長大な式になるので、INDUCEセクションを利用しています。
-}。
+「\texttt{subsection 装備}」
+は、「装備」を見出しにした、折りたたみ可能な部品で出力する指定です。
+装備が大量になったときは、必要なもの以外は折りたたむことを可能にします。
 
-また「フクなし」という、何も選ばない状態を表す、
-実際にはない装備を導入しています。
-RELATIONセクションで
-「\texttt{フク <= 1}」ではなく「\texttt{フク = 1}」としたことで%
-\footnote{
-RELATIONセクションには、3つ以上であっても、複数の式を、
-\texttt{=}、\texttt{<=}、\texttt{>=}
-でつないだ式を書けます。
-}、
-どれか1つは必ず1になるので、
-ポロシャツもパーカーも0のときはフクなしが1になり、
-その場合SUMMARYセクションに何も表示されないのではなく、
-「フクなし」と表示させることができます。
-%
-「クツなし」も同様です。
+「\texttt{width:150px}」のように、UI部品の幅を指定できます。
+指定を解除するときは「\texttt{nowidth}」とします。
+これにより、UI部品を揃えることができます。
+SUMMARYセクションでも利用できます。
 
-\paragraph{UIセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[UI] width:150px
-!R!-[UI] subsection フク
-!R!-(0..1) フクなし
-(0..C) ポロシャツ
-(0..C) パーカー
+\begin{center}
+\frame{\includegraphics[scale=0.25]{./fig/figa08.png}}
+\end{center}
 
-!R!-[UI] subsection クツ
-!R!-(0..1) クツなし
-!R!-(0..C) サンダル
-!R!-(0..C) スリッパ
+「\texttt{フクなし:\{フク\}}」などが装備やスキルの後に付いているときは、
+その装備やスキルをグループに登録します。
+グループ「\texttt{\{フク\}}」には、
+フクなし、ポロシャツ、パーカーの3つが登録されています。
 
-!R!-[UI] subsection スキル条件・最低防御力指定
-([0 1 2 3 4 5]..5) 攻撃
-!R!-([0 1 2 3]..3) 解放
-(0?..) 防御力
-\end{Verbatim}
-\end{mdframed}}
-\medskip
+RELATIONセクションの、「\texttt{\{フク\}.sum}」は、
+グループに登録されているものたちの総和を意味します。
+これにより、フクは、ポロシャツ、パーカー、フクなし
+のいずれか1つを装備することになります。
+フクなしは、装備なしのときにも表示させるために導入しています。
 
-「\texttt{[UI] subsection フク}」
-は、「フク」を見出しにした、折りたたみ可能な部品で出力する指定です。
-装備が大量になったときは、必要なもの以外は折りたたむことを可能にします%
-\footnote{
-よく見るスキルシミュレータでは、
-頭・胴・腕・腰・脚の5部位が横に並ぶようにするなど、
-防具のシリーズごとに分類しています。
-この例では練習のためフクとクツで分類しましたが、
-よく見るものにならうと、
-subsection「よそいき」にポロシャツとサンダルを置き、
-subsection「部屋着」にパーカーとスリッパを置くなどとなります。
-}。
-
-「\texttt{(0..1) フクなし}」は、最小値・最大値とも定数ですので、
-UI部品が生成されません。
+「\texttt{(0..1) フクなし}」は、最小値・最大値とも定数ですので、UI部品が生成されません。
 つまり、RELATIONセクションに「\texttt{0 <= フクなし <= 1}」
-と記述するのと同じです。「クツなし」も同様です。
+と記述するのと同じです。
 
 攻撃スキルの最大レベルは5にしていましたが、
 新設の解放スキルの最大は3としました。
+ともに、グループ「スキル」に登録しています。
 
 \begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig06.png}}
+\frame{\includegraphics[scale=0.25]{./fig/figa06.png}}
+\end{center}
+\begin{center}
+\frame{\includegraphics[scale=0.25]{./fig/figa07.png}}
 \end{center}
 
 \paragraph{SUMMARYセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[SUMMARY] !R!-width:50px
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<SUMMARY>
+|R|-width:50px
 v 防御力
-!R!-[SUMMARY] width:150px
-!R!-n* フクなし
-n* ポロシャツ
-n* パーカー
-!R!-n* クツなし
-!R!-n* サンダル
-!R!-n* スリッパ
+width:150px
+n* |R{フク}
+|R|-n* {クツ}
 \end{Verbatim}
 \end{mdframed}}
 \medskip
 
-UIセクションと同様に、SUMMARYセクションでも
-「\texttt{[SUMMARY] width:50px}」のように、
-表示される部品の幅を指定できます。
-これにより、検索結果が複数表示されているときも、
-表示が揃うようになります。
-
-\begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig07.png}}
-\end{center}
-
-\paragraph{DETAILSセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[DETAILS] newrow
-[DETAILS] スキル
-nv* 攻撃
-!R!-nv* 解放
-\end{Verbatim}
-\end{mdframed}}
-\medskip
-
-攻撃と同様に解放スキルも表示させます。
+「\texttt{n* \{フク\}}」のようにグループを用いると、
+グループに登録されている、
+「\texttt{n* フクなし}」
+「\texttt{n* ポロシャツ}」
+「\texttt{n* パーカー}」の3つを指定したことになります。
+これは、DETAILSセクションでも同様です。
 
 \section{スロットと珠} %%%%%%%%%%%%%%%%
 防具に「スロット」があり、そこにスキルを持った「珠」を装着できる
@@ -637,102 +549,89 @@ nv* 攻撃
 入力ファイルの後に記す内容の説明は、変更のあった場所に限定します。
 \medskip
 
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
 # チュートリアルその4
-[META]
+<META>
 title チュートリアル4 (スロットと珠)
 
-[INDUCE]
-フクなし    ->                        フク  1   
-ポロシャツ  ->  防御力  1,  攻撃  1,  フク  1
-パーカー    ->  防御力  2,            フク  1!R!-,  小スロ 2
-                                   
-クツなし    ->                        クツ  1
-サンダル    ->  防御力  1,            クツ  1
-スリッパ    ->  防御力  2,  解放  1,  クツ  1!R!-,  小スロ 1
+<UI>
+subsection 装備
+width:150px
+(0..1) フクなし:{フク}
+(0..C) ポロシャツ:{フク} -> 1 防御力, 1 攻撃
+(0..C) パーカー:{フク}   -> 2 防御力|R, 2 小スロ
+br
+(0..1) クツなし:{クツ}
+(0..C) サンダル:{クツ} -> 1 防御力
+(0..C) スリッパ:{クツ} -> 2 防御力, 1 解放|R, 1 小スロ
+|R|-br
+|R(0..[0 1 2 3 4 5]) 攻撃珠:{珠} -> 1 攻撃, -1 小スロ
 
-!R!-攻撃珠  ->  攻撃  1,  小スロ  -1
-
-[RELATION]
-フク = クツ = 1
-!R!-小スロ >= 0
-
-[UI] width:150px
-[UI] subsection フク
-(0..1) フクなし
-(0..C) ポロシャツ
-(0..C) パーカー
-
-[UI] subsection クツ
-(0..1) クツなし
-(0..C) サンダル
-(0..C) スリッパ
-
-!R!-[UI] subsection 珠
-!R!-(0..[0 1 2 3 4 5]) 攻撃珠
-
-[UI] subsection スキル条件・最低防御力指定
-([0 1 2 3 4 5]..5) 攻撃
-([0 1 2 3]..3) 解放
+subsection スキル条件・最低防御力指定
+([0 1 2 3 4 5]..5) 攻撃:{スキル}
+([0 1 2 3]..3)     解放:{スキル}
 (0?..) 防御力
 
-[QUERY]
-検索 検索中止 追加検索 防御力
+<RELATION>
+{フク}.sum = {クツ}.sum = 1
+|R|-小スロ >= 0
 
-[SUMMARY] width:50px
+<QUERY>
+query 検索 検索中止 追加検索 防御力
+
+<SUMMARY>
+width:50px
 v 防御力
-[SUMMARY] width:150px
-n* フクなし
-n* ポロシャツ
-n* パーカー
-n* クツなし
-n* サンダル
-n* スリッパ
+width:150px
+n* {フク}
+n* {クツ}
 
-[DETAILS] newrow
-[DETAILS] スキル
-nv* 攻撃
-nv* 解放
+<DETAILS>
+newcolumn スキル
+nv* {スキル}
 
-!R!-[DETAILS] newrow
-!R!-[DETAILS] 珠
-!R!-nv* 攻撃珠
+|R|-newcolumn 珠
+|R|-nv* {珠}
 
-!R!-[DETAILS] newrow
-!R!-[DETAILS] 空きスロット
-!R!-nv 小スロ 
+|R|-newcolumn 空きスロット
+|R|-nv 小スロ
 \end{Verbatim}
 \end{mdframed}}
 
 \subsection{入力ファイルの内容の説明}
 
-\paragraph{INDUCEセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[INDUCE]
-フクなし    ->                        フク  1   
-ポロシャツ  ->  防御力  1,  攻撃  1,  フク  1
-パーカー    ->  防御力  2,            フク  1!R!-,  小スロ 2
-                                   
-クツなし    ->                        クツ  1
-サンダル    ->  防御力  1,            クツ  1
-スリッパ    ->  防御力  2,  解放  1,  クツ  1!R!-,  小スロ 1
-
-!R!-攻撃珠  ->  攻撃  1,  小スロ  -1
+\paragraph{UIセクション}~\medskip
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<UI>
+subsection 装備
+width:150px
+(0..1) フクなし:{フク}
+(0..C) ポロシャツ:{フク} -> 1 防御力, 1 攻撃
+(0..C) パーカー:{フク}   -> 2 防御力|R, 2 小スロ
+br
+(0..1) クツなし:{クツ}
+(0..C) サンダル:{クツ} -> 1 防御力
+(0..C) スリッパ:{クツ} -> 2 防御力, 1 解放|R, 1 小スロ
+|R|-br
+|R(0..[0 1 2 3 4 5]) 攻撃珠:{珠} -> 1 攻撃, -1 小スロ
 \end{Verbatim}
 \end{mdframed}}
 \medskip
 
 パーカーが小スロットを2つ、スリッパが小スロットを1つ発動することを指定します。
 
-また、攻撃珠が攻撃のスキルレベルを1発動し、
-小スロット1つを消費することも指定します。
+また、攻撃珠が攻撃のスキルレベルを1発動し、小スロット1つを消費することも指定します。
 消費する場合は負の値になります。
 
+\begin{center}
+\frame{\includegraphics[scale=0.25]{./fig/figa09.png}}
+\end{center}
+
 \paragraph{RELATIONセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[RELATION]
-フク = クツ = 1
-!R!-小スロ >= 0
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<RELATION>
+{フク}.sum = {クツ}.sum = 1
+|R|-小スロ >= 0
 \end{Verbatim}
 \end{mdframed}}
 \medskip
@@ -743,40 +642,17 @@ INDUCEセクションで、珠の消費する小スロット数を負で与え�
 小スロの値は、消費されずに残っているスロット数です。
 従って、条件は「\texttt{小スロ >= 0}」と表せることになります。
 
-\paragraph{UIセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[UI] width:150px
-
-(中略)
-
-!R!-[UI] subsection 珠
-!R!-(0..[0 1 2 3 4 5]) 攻撃珠
-
-(攻略)
-\end{Verbatim}
-\end{mdframed}}
-\medskip
-
-珠の所持数の設定も指定します。
-
-\begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig08.png}}
-\end{center}
-
 \paragraph{DETAILSセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[DETAILS] newrow
-[DETAILS] スキル
-nv* 攻撃
-nv* 解放
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<DETAILS>
+newcolumn スキル
+nv* {スキル}
 
-!R!-[DETAILS] newrow
-!R!-[DETAILS] 珠
-!R!-nv* 攻撃珠
+|R|-newcolumn 珠
+|R|-nv* {珠}
 
-!R!-[DETAILS] newrow
-!R!-[DETAILS] 空きスロット
-!R!-nv 小スロ 
+|R|-newcolumn 空きスロット
+|R|-nv 小スロ
 \end{Verbatim}
 \end{mdframed}}
 \medskip
@@ -785,7 +661,7 @@ nv* 解放
 珠の個数と空きスロットを、ともに1列設けて表示します。
 
 \begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig09.png}}
+\frame{\includegraphics[scale=0.25]{./fig/figa10.png}}
 \end{center}
 
 \section{大きさの違うスロット} %%%%%%%%%%%%%%%%
@@ -835,92 +711,77 @@ nv* 解放
 入力ファイルの後に記す内容の説明は、変更のあった場所に限定します。
 \medskip
 
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
 # チュートリアルその5
-[META]
+<META>
 title チュートリアル5 (大きさの違うスロット)
 
-[INDUCE]
-フクなし    ->                        フク  1   
-ポロシャツ  ->  防御力  1,  攻撃  1,  フク  1!R!-,  小スロ 2, 中スロ 1, 大スロ 1
-パーカー    ->  防御力  2,            フク  1,  小スロ 2
-                                   
-クツなし    ->                        クツ  1
-サンダル    ->  防御力  1,            クツ  1
-スリッパ    ->  防御力  2,  解放  1,  クツ  1,  小スロ 1
+<UI>
+subsection 装備
+width:150px
+(0..1) フクなし:{フク}
+(0..C) ポロシャツ:{フク} -> 1 防御力, 1 攻撃|R, 2 小スロ, 1 中スロ, 1 大スロ
+(0..C) パーカー:{フク}   -> 2 防御力, 2 小スロ
+br
+(0..1) クツなし:{クツ}
+(0..C) サンダル:{クツ} -> 1 防御力
+(0..C) スリッパ:{クツ} -> 2 防御力, 1 解放, 1 小スロ
+br
+(0..[0 1 2 3 4 5]) 攻撃珠:{珠}   -> 1 攻撃, -1 小スロ
+|R(0..[0 1 2])       攻撃大珠:{珠} -> 2 攻撃, -1 大スロ
 
-攻撃珠    ->  攻撃  1,  小スロ  -1
-!R!-攻撃大珠  ->  攻撃  2,  大スロ  -1
-
-[RELATION]
-フク = クツ = 1
-!R!-大スロ >= 0
-!R!-大スロ + 中スロ >= 0
-!R!-大スロ + 中スロ + 小スロ >= 0
-!R!-空きスロット合計 = 大スロ + 中スロ + 小スロ
-
-[UI] width:150px
-[UI] subsection フク
-(0..1) フクなし
-(0..C) ポロシャツ
-(0..C) パーカー
-
-[UI] subsection クツ
-(0..1) クツなし
-(0..C) サンダル
-(0..C) スリッパ
-
-[UI] subsection 珠
-(0..[0 1 2 3 4 5]) 攻撃珠
-!R!-(0..[0 1 2]) 攻撃大珠
-
-[UI] subsection スキル条件・最低防御力指定
-([0 1 2 3 4 5]..5) 攻撃
-([0 1 2 3]..3) 解放
+subsection スキル条件・最低防御力指定
+([0 1 2 3 4 5]..5) 攻撃:{スキル}
+([0 1 2 3]..3)     解放:{スキル}
 (0?..) 防御力
 
-[QUERY]
-検索 検索中止 追加検索 防御力
+<RELATION>
+{フク}.sum = {クツ}.sum = 1
 
-[SUMMARY] width:50px
+|R|-大スロ >= 0
+|R|-大スロ + 中スロ >= 0
+|R|- 大スロ + 中スロ + 小スロ >= 0
+|R|-空きスロット合計 = 大スロ + 中スロ + 小スロ
+
+<QUERY>
+query 検索 検索中止 追加検索 防御力
+
+<SUMMARY>
+width:50px
 v 防御力
-[SUMMARY] width:150px
-n* フクなし
-n* ポロシャツ
-n* パーカー
-n* クツなし
-n* サンダル
-n* スリッパ
+width:150px
+n* {フク}
+n* {クツ}
 
-[DETAILS] newrow
-[DETAILS] スキル
-nv* 攻撃
-nv* 解放
+<DETAILS>
+newcolumn スキル
+nv* {スキル}
 
-[DETAILS] newrow
-[DETAILS] 珠
-nv* 攻撃珠
-!R!-nv* 攻撃大珠
+newcolumn 珠
+nv* {珠}
 
-[DETAILS] newrow
-[DETAILS] 空きスロット
-!R!-nv 空きスロット合計
+newcolumn 空きスロット
+|R|-nv 空きスロット合計
 \end{Verbatim}
 \end{mdframed}}
 
 \subsection{入力ファイルの内容の説明}
 
-\paragraph{INDUCEセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[INDUCE]
-フクなし    ->                        フク  1   
-ポロシャツ  ->  防御力  1,  攻撃  1,  フク  1!R!-,  小スロ 2, 中スロ 1, 大スロ 1
-パーカー    ->  防御力  2,            フク  1,  小スロ 2
-                                   
-(中略)
-
-攻撃珠    ->  攻撃  1,  小スロ  -1
-!R!-攻撃大珠  ->  攻撃  2,  大スロ  -1
+\paragraph{UIセクション}~\medskip
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<UI>
+subsection 装備
+width:150px
+(0..1) フクなし:{フク}
+(0..C) ポロシャツ:{フク} -> 1 防御力, 1 攻撃|R, 2 小スロ, 1 中スロ, 1 大スロ
+(0..C) パーカー:{フク}   -> 2 防御力, 2 小スロ
+br
+(0..1) クツなし:{クツ}
+(0..C) サンダル:{クツ} -> 1 防御力
+(0..C) スリッパ:{クツ} -> 2 防御力, 1 解放, 1 小スロ
+br
+(0..[0 1 2 3 4 5]) 攻撃珠:{珠}   -> 1 攻撃, -1 小スロ
+|R(0..[0 1 2])       攻撃大珠:{珠} -> 2 攻撃, -1 大スロ
 \end{Verbatim}
 \end{mdframed}}
 \medskip
@@ -928,65 +789,30 @@ nv* 攻撃珠
 ポロシャツにスロットを追加し、攻撃大珠を新設します。
 
 \paragraph{RELATIONセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[RELATION]
-フク = クツ = 1
-!R!-大スロ >= 0
-!R!-大スロ + 中スロ >= 0
-!R!-大スロ + 中スロ + 小スロ >= 0
-!R!-空きスロット合計 = 大スロ + 中スロ + 小スロ
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<RELATION>
+{フク}.sum = {クツ}.sum = 1
+
+|R|-大スロ >= 0
+|R|-大スロ + 中スロ >= 0
+|R|-大スロ + 中スロ + 小スロ >= 0
+|R|-空きスロット合計 = 大スロ + 中スロ + 小スロ
 \end{Verbatim}
 \end{mdframed}}
 \medskip
 
 スロットに関する関係式は、「\texttt{小スロ >= 0}」などとはならないです。
 このチュートリアルでは説明は省きます。
-
 ただし、
 「\texttt{大スロ + 中スロ + 小スロ}」は、空きスロット
-合計に一致するので、これだけは利用することにします。
+合計に一致するので、これだけは利用することにし、
+DETAILSセクションに表示します。
 
-\paragraph{UIセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[UI] width:150px
+各スロットの空き数を求めることもできますが、次節で触れます。
 
-(中略)
-
-[UI] subsection 珠
-(0..[0 1 2 3 4 5]) 攻撃珠
-!R!-(0..[0 1 2]) 攻撃大珠
-
-(攻略)
-\end{Verbatim}
-\end{mdframed}}
-\medskip
-
-攻撃大珠の所持数指定を追加します。
-
-\paragraph{DETAILSセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[DETAILS] newrow
-
-(中略)
-
-[DETAILS] newrow
-[DETAILS] 珠
-nv* 攻撃珠
-!R!-nv* 攻撃大珠
-
-[DETAILS] newrow
-[DETAILS] 空きスロット
-!R!-nv 空きスロット合計
-\end{Verbatim}
-\end{mdframed}}
-\medskip
-
-攻撃大珠と空きスロットの表示を追加します。
-
-\section{スキルレベル上限解放、結果表示の工夫} %%%%%%%%%%%%%%%%
+\section{スキルレベル上限解放、結果表示の工夫、追加スキル検索} %%%%%%%%%%%%%%%%
 ここでは、モンスターハンターワールド：アイスボーンで
-言うところの極意、つまり、
-スキルレベルの上限解放を説明します。
+言うところの極意、つまり、スキルレベルの上限解放を説明します。
 
 また、スキルの種類が増えた場合の、
 検索対象のスキルと、そうではないがおまけで付いてきたスキルを
@@ -1026,146 +852,105 @@ nv* 攻撃珠
 入力ファイルの後に記す内容の説明は、変更のあった場所に限定します。
 \medskip
 
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
 # チュートリアルその6
-[META]
-title チュートリアル6 (スキルレベル上限解放、結果表示の工夫)
+<META>
+title チュートリアル6 (スキルレベル上限解放、結果表示の工夫、追加スキル検索)
 
-[INDUCE]
-フクなし    ->                        フク  1   
-ポロシャツ  ->  防御力  1,  攻撃  1,  フク  1,  小スロ 2, 中スロ 1, 大スロ 1
-パーカー    ->  防御力  2,            フク  1,  小スロ 2
-                                   
-クツなし    ->                        クツ  1
-サンダル    ->  防御力  1,            クツ  1
-スリッパ    ->  防御力  2,  解放  1,  クツ  1,  小スロ 1
+<UI>
+subsection 装備
+width:150px
+(0..1) フクなし:{フク}
+(0..C) ポロシャツ:{フク} -> 1 防御力, 1 攻撃, 2 小スロ, 1 中スロ, 1 大スロ
+(0..C) パーカー:{フク}   -> 2 防御力, 2 小スロ
+br
+(0..1) クツなし:{クツ}
+(0..C) サンダル:{クツ} -> 1 防御力
+(0..C) スリッパ:{クツ} -> 2 防御力, 1 解放, 1 小スロ
+br
+(0..[0 1 2 3 4 5]) 攻撃珠:{珠}   -> 1 攻撃, -1 小スロ
+(0..[0 1 2])       攻撃大珠:{珠} -> 2 攻撃, -1 大スロ
+|R(0..[0 1 2 3])     解放珠:{珠}   -> 1 解放, -1 中スロ
 
-攻撃珠    ->  攻撃  1,  小スロ  -1
-攻撃大珠  ->  攻撃  2,  大スロ  -1
-!R!-解放珠    ->  解放  1,  中スロ  -1
+subsection スキル条件・最低防御力指定
+([0 1 2 3 4 5]..5)|R*|B 攻撃:{スキル}
+([0 1 2 3]..3)|R*|B     解放:{スキル}
+(0?..) 		    防御力
 
-[RELATION]
-フク = クツ = 1
+<RELATION>
+{フク}.sum = {クツ}.sum = 1
+
 大スロ >= 0
 大スロ + 中スロ >= 0
 大スロ + 中スロ + 小スロ >= 0
-空きスロット合計 = 大スロ + 中スロ + 小スロ
 
-!R!-[UNLOCK]
-!R!-解放 3, 攻撃 3 5
+|R|-小以上空きスロ = 大スロ + 中スロ + 小スロ
+|R|-中以上空きスロ <= 小以上空きスロ
+|R|-中以上空きスロ <= 大スロ + 中スロ
+|R|-大以上空きスロ <= 中以上空きスロ
+|R|-大以上空きスロ <= 大スロ
 
-[UI] width:150px
-[UI] subsection フク
-(0..1) フクなし
-(0..C) ポロシャツ
-(0..C) パーカー
+|R|-小空きスロ = 小以上空きスロ - 中以上空きスロ
+|R|-中空きスロ = 中以上空きスロ - 大以上空きスロ
+|R|-大空きスロ = 大以上空きスロ
 
-[UI] subsection クツ
-(0..1) クツなし
-(0..C) サンダル
-(0..C) スリッパ
+|R|-最大化 = 1000 防御力 + 小以上空きスロ
 
-[UI] subsection 珠
-(0..[0 1 2 3 4 5]) 攻撃珠
-(0..[0 1 2]) 攻撃大珠
-!R!-(0..[0 1 2 3]) 解放珠
+|R<UNLOCK>
+|R|-解放 3, 攻撃 3 5
 
-[UI] subsection スキル条件・最低防御力指定
-([0 1 2 3 4 5]..5)!R!-* !B!-攻撃
-([0 1 2 3]..3)!R!-* !B!-解放
-(0?..) 防御力
+<QUERY>
+query 検索 検索中止 追加検索 |R|-最大化
 
-[QUERY]
-検索 検索中止 追加検索 防御力
-
-[SUMMARY] width:50px
+<SUMMARY>
+width:50px
 v 防御力
-[SUMMARY] width:150px
-n* フクなし
-n* ポロシャツ
-n* パーカー
-n* クツなし
-n* サンダル
-n* スリッパ
+width:150px
+n* {フク}
+n* {クツ}
 
-[DETAILS] newrow
-[DETAILS] !R!-検索対象スキル
-nv* 攻撃
-nv* 解放
+<DETAILS>
+newcolumn |R|-検索対象スキル
+nv* {スキル}
 
-!R!-[DETAILS] newrow
-!R!-[DETAILS] !E!-対象外スキル
+|R|-newcolumn !対象外スキル
 
-[DETAILS] newrow
-[DETAILS] 珠
-nv* 攻撃珠
-nv* 攻撃大珠
-!R!-nv* 解放珠
+newcolumn 珠
+nv* {珠}
 
-[DETAILS] newrow
-[DETAILS] 空きスロット
-nv 空きスロット合計
+newcolumn 空きスロット
+|R|-nv 小空きスロ
+|R|-nv 中空きスロ
+|R|-nv 大空きスロ
+
+|R|-newcolumn 所要時間
+|R|-time
+
+|R|-newcolumn 追加スキル
+|R|-more 追加スキル {スキル}
 \end{Verbatim}
 \end{mdframed}}
 
 
 \subsection{入力ファイルの内容の説明}
 
-\paragraph{INDUCEセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[INDUCE]
+\paragraph{UIセクション}~\medskip
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<UI>
+:
+中略
+:
+|R(0..[0 1 2 3])     解放珠:{珠}   -> 1 解放, -1 中スロ
 
-(中略)
-
-攻撃珠    ->  攻撃  1,  小スロ  -1
-攻撃大珠  ->  攻撃  2,  大スロ  -1
-!R!-解放珠    ->  解放  1,  中スロ  -1
+subsection スキル条件・最低防御力指定
+([0 1 2 3 4 5]..5)|R*|B 攻撃:{スキル}
+([0 1 2 3]..3)|R*|B     解放:{スキル}
+(0?..) 		    防御力
 \end{Verbatim}
 \end{mdframed}}
 \medskip
 
 解放珠を新設します。
-
-\paragraph{UNLOCKセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-!R!-[UNLOCK]
-!R!-解放 3, 攻撃 3 5
-\end{Verbatim}
-\end{mdframed}}
-\medskip
-
-上限解放は上のように記述します。
-この例では、解放スキルが3未満ならば攻撃スキルの上限は3、
-解放スキルが3以上ならば攻撃スキルの上限は5と指定しています。
-
-この指定を用いると、
-攻撃スキルが3より高いものを検索したい時に、
-解放スキルを3にする設定を手動でしていなくとも、
-必ず解放スキルが3以上になる結果のみが得られます。
-
-
-
-
-\paragraph{UIセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[UI] width:150px
-
-(中略)
-
-[UI] subsection 珠
-(0..[0 1 2 3 4 5]) 攻撃珠
-(0..[0 1 2]) 攻撃大珠
-!R!-(0..[0 1 2 3]) 解放珠
-
-[UI] subsection スキル条件・最低防御力指定
-([0 1 2 3 4 5]..5)!R!-* !B!-攻撃
-([0 1 2 3]..3)!R!-* !B!-解放
-(0?..) 防御力
-\end{Verbatim}
-\end{mdframed}}
-\medskip
-
-解放珠の所持数の設定を新設します。
 
 また、「\texttt{([0 1 2 3 4 5]..5)* 攻撃}」と、
 スキルレベル指定のうしろに「\texttt{*}」を付けると、
@@ -1184,25 +969,88 @@ nv 空きスロット合計
 これにより、検索対象スキルとおまけで付いてきたスキルを区別して
 検索結果に表示することができます。
 
+\paragraph{RELATIONセクション}~\medskip
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<RELATION>
+{フク}.sum = {クツ}.sum = 1
+
+大スロ >= 0
+大スロ + 中スロ >= 0
+大スロ + 中スロ + 小スロ >= 0
+
+|R|-小以上空きスロ = 大スロ + 中スロ + 小スロ
+|R|-中以上空きスロ <= 小以上空きスロ
+|R|-中以上空きスロ <= 大スロ + 中スロ
+|R|-大以上空きスロ <= 中以上空きスロ
+|R|-大以上空きスロ <= 大スロ
+
+|R|-小空きスロ = 小以上空きスロ - 中以上空きスロ
+|R|-中空きスロ = 中以上空きスロ - 大以上空きスロ
+|R|-大空きスロ = 大以上空きスロ
+
+|R|-最大化 = 1000 防御力 + 小以上空きスロ
+
+|R<UNLOCK>
+|R|-解放 3, 攻撃 3 5
+\end{Verbatim}
+\end{mdframed}}
+\medskip
+
+空きスロットを求めることを説明しますが少し複雑で、詳細は
+\url{https://github.com/13-480/lp-doc/blob/main/lpsim-v4.pdf}に説明があります。
+上の式で定義される
+「小空きスロ」「中空きスロ」「大空きスロ」は、
+そのまま空きスロット数を表すのではなく、
+上の式による制約の下、とりうる最大の値が空きスロット数になります。
+
+そこで、
+「\texttt{最大化 = 1000 防御力 + 小以上空きスロ}」
+によって、
+「小空きスロ」「中空きスロ」「大空きスロ」も可能な限り大きくなるように、
+検索条件を指定します。
+このとき、もともと最大にしようとしていた防御力を1000倍して、
+1000を越えることはない「小以上空きスロ」に影響されないようにして、
+防御力が等しい検索結果同士では、「小以上空きスロ」が大きい方を
+選ぶようにしています。
+
+\paragraph{UNLOCKセクション}~\medskip
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+|R<UNLOCK>
+|R|-解放 3, 攻撃 3 5
+\end{Verbatim}
+\end{mdframed}}
+\medskip
+
+上限解放は上のように記述します。
+この例では、解放スキルが3未満ならば攻撃スキルの上限は3、
+解放スキルが3以上ならば攻撃スキルの上限は5と指定しています。
+
+この指定を用いると、
+攻撃スキルが3より高いものを検索したい時に、
+解放スキルを3にする設定を手動でしていなくとも、
+必ず解放スキルが3以上になる結果のみが得られます。
+
 \paragraph{DETAILSセクション}~\medskip
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[DETAILS] newrow
-[DETAILS] !R!-検索対象スキル
-nv* 攻撃
-nv* 解放
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<DETAILS>
+newcolumn |R|-検索対象スキル
+nv* {スキル}
 
-!R!-[DETAILS] newrow
-!R!-[DETAILS] !E!-対象外スキル
+|R|-newcolumn !対象外スキル
 
-[DETAILS] newrow
-[DETAILS] 珠
-nv* 攻撃珠
-nv* 攻撃大珠
-!R!-nv* 解放珠
+newcolumn 珠
+nv* {珠}
 
-[DETAILS] newrow
-[DETAILS] 空きスロット
-nv 空きスロット合計
+newcolumn 空きスロット
+|R|-nv 小空きスロ
+|R|-nv 中空きスロ
+|R|-nv 大空きスロ
+
+|R|-newcolumn 所要時間
+|R|-time
+
+|R|-newcolumn 追加スキル
+|R|-more 追加スキル {スキル}
 \end{Verbatim}
 \end{mdframed}}
 \medskip
@@ -1211,13 +1059,29 @@ nv 空きスロット合計
 中身は空ですが、UIセクションで「\texttt{*}」指定があれば、
 この列に表示されることになります。
 
-また、「\texttt{[DETAILS] !対象外スキル}」
+また、「\texttt{newcolumn !対象外スキル}」
 のように、文字列先頭に「!」がある場合は、
 既に前の列から移動してきたものがあっても、1行目に表示します。
 
 \begin{center}
-\frame{\includegraphics[scale=0.5]{./fig/fig10.png}}
+\frame{\includegraphics[scale=0.25]{./fig/figa11.png}}
 \end{center}
+
+「time」はこの結果の検索に要した時間を表示します。
+
+「\texttt{more 追加スキル \{スキル}\}」
+は、追加スキル検索のボタンを配置します。
+これをクリックすると、
+この検索結果の見出し部分で「\texttt{n*}」と指定され、表示されている装備を固定したときの、
+グループ「\{スキル\}」に登録されているものの最大値を検索し、表示します。
+
+
+\begin{center}
+\frame{\includegraphics[scale=0.25]{./fig/figa12.png}}
+\end{center}
+
+上の例だと、ポロシャツ、スリッパを固定したとき、珠の付け変えで
+攻撃や解放スキルが最大いくらにできるかを検索した結果が表示されています。
 
 \section{雑多な補足} %%%%%%%%%%%%%%%%
 
@@ -1228,15 +1092,15 @@ nv 空きスロット合計
 RELATIONセクションに
 \medskip
 \\
-{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=!<>]
-[RELATION]
+{\footnotesize\begin{mdframed}\begin{Verbatim}[commandchars=|<>]
+<RELATION>
 ポロシャツ = サンダル
 \end{Verbatim}
 \end{mdframed}}
 \medskip
 \noindent
 と記述するとよいです (同時に0か、同時に1の可能性しかなくなるので)。
-装備の部位がが2つより大きい場合も、
+装備の部位が2つより大きい場合も、
 「\texttt{ポロシャツ = サンダル = メガネ}」
 のようにするとよいです。
 
@@ -1245,7 +1109,7 @@ RELATIONセクションに
 ゲームが異なってもシミュレータには共通する部分がありますが、
 高速化については個別の工夫がなされていました。
 これを、線形計画法のライブラリに丸投げすることで、
-高速化はすべてライブラリに任せることができるというメリットがあります。
+検索と高速化はすべてライブラリに任せることができるというメリットがあります。
 
 よく見るシミュレータでは、条件に合致するものがある程度少なければ、
 すべてを検索結果として表示します。
@@ -1292,7 +1156,7 @@ SUMMARYセクションで「\texttt{n*}」と指定されている装備の
 \subsection{パラメータ保存のタイミング}
 プルダウンメニュー、チェックボックス、テキストボックスの内容は保存され、
 リロードしたときや、ブラウザを閉じて再び開いたときに回復されます。
-保存のタイミングは、検索ボタンをクリックしたときです。
+保存のタイミングは、検索ボタンや検索結果の全消去ボタンをクリックしたときです。
 
 \section{おわりに} %%%%%%%%%%%%%%%%
 どうか身バレしませんように。
@@ -1305,5 +1169,12 @@ SUMMARYセクションで「\texttt{n*}」と指定されている装備の
 \noindent
 1版. 2021年4月1日\\
 \quad (2021年4月2日 雑多な補足に追記)
+\\
+2版. 2021年5月11日
+\quad
+独自言語の文法の大幅な変更。
+空きスロット数の表示方法。
+追加スキル検索。
+
 
 \end{document}
