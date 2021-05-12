@@ -181,12 +181,15 @@ function get_glpk_bounds() {
 	var min = String(get_value(elt.children[0]));
 	var max = String(get_value(elt.children[1]));
 	var v = get_value(elt.children[3]);
-	vs.delete(v);
-	if (min != '') { v = min + ' <= ' + v; }
-	if (max != '') { v = v + ' <= ' + max; }
-	if (min == '' && max == '') { v = '-inf <= ' + v + ' <= +inf'; }
-	res.push(v);
+	var str = v;
+	if (min != '') { str = min + ' <= ' + str; }
+	if (max != '') { str = str + ' <= ' + max; }
+	if (min != '' || max != '') {
+	    res.push(str);
+	    vs.delete(v);
+	}
     }
+    console.log('防御力=v6', vs, res[res.length-1]);
     // UIになかったもの
     for (var v of vs) {
 	res.push('-inf <= ' + v + '<= +inf');
