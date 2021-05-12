@@ -189,7 +189,6 @@ function get_glpk_bounds() {
 	    vs.delete(v);
 	}
     }
-    console.log('防御力=v6', vs, res[res.length-1]);
     // UIになかったもの
     for (var v of vs) {
 	res.push('-inf <= ' + v + '<= +inf');
