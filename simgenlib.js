@@ -436,7 +436,7 @@ function doMoreSkill2(vs, btn, glpktxt1, glpktxt2) {
 	    job = null;
 	    var lv = e.data.result[ks[0]];
 	    if (lv > vs[ks[0]]) {
-		btn.parentNode.appendChild(document.createTextNode(`Lv${lv}`));
+		btn.parentNode.appendChild(document.createTextNode(` ${lv}`));
 		btn.parentNode.appendChild(document.createElement('br'));
 	    } else {
 		btn.parentNode.lastElementChild.remove();
