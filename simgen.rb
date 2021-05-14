@@ -394,7 +394,10 @@ class SimParser
           break
         end
       }
-      raise 'recursive group:' if cnt == @group.size
+      if cnt == @group.size then
+        $stderr.puts pp(@group)
+        raise 'recursive group:'
+      end
     end
     @group = h
   end # of resolve_group
