@@ -1,4 +1,6 @@
 # coding: utf-8
+# 5chの表計算データを読み、simgen.rbの入力ファイルを出力する。
+
 # 5chのデータのcsvファイルのパス
 FILES = {}
 FILES['頭'] =     './5ch/MHR_EQUIP_HEAD - 頭.csv'  
