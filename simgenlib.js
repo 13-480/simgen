@@ -529,11 +529,14 @@ function updateHilite(elt) {
     }
     elt.classList.remove('hiliteMax');
     elt.classList.remove('hiliteMin');
+    elt.classList.remove('hiliteNormal');
     var a = Number(elt.options[elt.selectedIndex].value);
     if (a == max) {
 	elt.classList.add('hiliteMax');
     } else if (a == min) {
-	elt.classList.add('hiliteMin');
+//	elt.classList.add('hiliteMin');
+    } else {
+	elt.classList.add('hiliteNormal');
     }
 }
 
