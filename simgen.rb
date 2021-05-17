@@ -478,6 +478,9 @@ class GenHTML
     res.push('<!-- 検索結果 -->', '<div id=resultpane>', '</div>')
     # GenGLPKで生成するデータ
     res.push(gen_html_glpk_data)
+    # 大域変数simgenenvの宣言
+    # (localstorage, summary, details, vname, group, url 以前に置くこと)
+    res.push('<script>', 'var simgenenv = {};', '</script>')
     # Local strage key
     res.push(gen_html_localstragekey)
     # SUMMARYセクションのデータ
@@ -730,7 +733,7 @@ EOS
     key = loc ? loc[1] : 'simgen'
     res = []
     res.push('<script>')
-    res.push("var glpklocalstoragekey = '#{key}';")
+    res.push("simgenenv['localstorage'] = '#{key}';")
     res.push('</script>')
   end
 
@@ -738,7 +741,7 @@ EOS
   # @psr.summaryの要素は、[フラグ, 変数名] か nowidth等
   # 出力のsummaryは、Stringならnowidth等、配列なら[フラグ, GLPK変数名]
   def gen_html_summary
-    res = ['<script>', 'var summary = [']
+    res = ['<script>', "simgenenv['summary'] = ["]
     @psr.summary.each {|x|
       if x.size <= 1 then # nowidth等
         res.push("'#{x[0]}',")
@@ -755,7 +758,7 @@ EOS
   # @psr.detailsの要素は、[フラグ, 変数名] か 列見出し等
   # 出力のdetailsは、Stringなら見出しやnowidth等、配列なら[フラグ, GLPK変数名]
   def gen_html_details
-    res = ['<script>', 'var details = [']
+    res = ['<script>', "simgenenv['details'] = ["]
     @psr.details.each {|x|
       if x.size <= 1 then # nowidth等
         res.push("'#{x[0].strip}',")
@@ -774,7 +777,7 @@ EOS
 
   # GLPK変数=>変数名の辞書
   def gen_html_var
-    res = ['<script>', 'var vname = {']
+    res = ['<script>', "simgenenv['vname'] = {"]
     @psr.var.each_slice(4) {|x|
       res.push x.map {|k,v| "#{v}:'#{k}'," }.join(' ') }
     res[-1][-2..-1] == ''
@@ -783,7 +786,7 @@ EOS
 
   # グループ名=>[GLPK変数]の辞書
   def gen_html_group
-    res = ['<script>', 'var group = {']
+    res = ['<script>', "simgenenv['group'] = {"]
     @psr.group.each {|k,vs|
       res.push("'%s':[%s]," % [k, vs.map {|v| "'#{@psr.var[v]}'" }.join(',') ])}
     res[-1][-2..-1] == ''
