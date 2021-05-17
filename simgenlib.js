@@ -66,8 +66,8 @@ function doQueryBtnRun() {
     if (glpkshow()) {
 	console.log(glpktxt);
 	str = [];
-	for (var v of Object.keys(vname)) {
-	    str.push(String(v) + ' ' + vname[v]);
+	for (var v of Object.keys(simgenenv['vname'])) {
+	    str.push(String(v) + ' ' + simgenenv['vname'][v]);
 	}
 	console.log(str.join(' / '));
     }
@@ -188,7 +188,7 @@ function get_glpk_bounds() {
     var res = ['Bounds'];
     // すべてのGLPK変数のSet
     var vs = new Set();
-    for (v of Object.keys(vname)) { vs.add(v); }
+    for (v of Object.keys(simgenenv['vname'])) { vs.add(v); }
     // UIにあるものは範囲を取得
     var elts = document.querySelectorAll('.ui');
     for (var elt of elts) {
@@ -278,7 +278,7 @@ function insertNoResult(res, tm) {
 function summaryText(res, tm) {
     var lines = [];
     var width = null;
-    for (var x of summary) { // [フラグ, GLPK変数]か幅指定
+    for (var x of simgenenv['summary']) { // [フラグ, GLPK変数]か幅指定
 	if (! (x instanceof Array)) { // 幅指定
 	    width = x.match(/width:\d+px/) ? x : null;
 	} else if (x[0].includes('*') && res[x[1]] == 0) { // 0で表示抑制
@@ -286,7 +286,7 @@ function summaryText(res, tm) {
 	} else {
 	    var line = [];
 	    if (x[0].includes('n')) { // 変数名
-		line.push(vname[x[1]]);
+		line.push(simgenenv['vname'][x[1]]);
 	    }
 	    if (x[0].includes('v')) { // 値
 		line.push(res[x[1]]);
@@ -304,7 +304,7 @@ function summaryText(res, tm) {
 function condInAddMoreText(res) {
     var cond = [];
     var condVal = 0;
-    for (var x of summary) { // [フラグ, GLPK変数]か幅指定
+    for (var x of simgenenv['summary']) { // [フラグ, GLPK変数]か幅指定
 	if (x instanceof Array && (x[0]=='n*'||x[0]=='*n') && res[x[1]] > 0) {
 	    condVal += res[x[1]];
 	    cond.push(x[1]);
@@ -322,8 +322,8 @@ function detailsText(res, tm) {
     var row = null;
     var carryover = []; // 次の列に持ち越すもの
     var fullrng = fullrange(); // UIセクションで「*」かつ範囲一杯のGLPK変数のSet
-    // 
-    for (var x of details) {
+    //
+    for (var x of simgenenv['details']) {
 	if (! (x instanceof Array)) { // 見出し等
 	    if (x == 'newcolumn') { // 列生成
 		if (row) { lines.push(vbox(row)); } // 前の列を確定
@@ -342,7 +342,7 @@ function detailsText(res, tm) {
 	} else if (x[0] == 'more') { // 追加スキルボタン
 	    // 追加スキルで検索するGLPK変数=>当該結果の値の辞書を作成
 	    var h = {};
-	    for (var v of group[x[2]]) { h[v] = res[v]; }
+	    for (var v of simgenenv['group'][x[2]]) { h[v] = res[v]; }
 	    var hstr = JSON.stringify(h);
 	    var str = '<button onclick="doMoreSkillBtn(event)" ' +
 		`vs='${hstr}'>` + x[1] + '</button>';
@@ -352,7 +352,7 @@ function detailsText(res, tm) {
 	    // 0で表示抑制
 	    if (x[0].includes('*') && res[x[1]] == 0) { continue; }
 	    // 変数名
-	    if (x[0].includes('n')) { line.push(vname[x[1]]); }
+	    if (x[0].includes('n')) { line.push(simgenenv['vname'][x[1]]); }
 	    // 値
 	    if (x[0].includes('v')) { line.push(res[x[1]]); }
 	    // 範囲一杯かどうかで判断して現在列か次の列に追加する
@@ -437,7 +437,7 @@ function doMoreSkill2(vs, btn, glpktxt1, glpktxt2) {
     if (ks.length == 0) { return; }
     // スキル名を表示
     var elt = document.createElement('span');
-    elt.innerHTML = vname[ks[0]];
+    elt.innerHTML = simgenenv['vname'][ks[0]];
     btn.parentNode.appendChild(elt);
     // 検索時のglpkテキストを取得
     var glpktxt =
@@ -464,7 +464,7 @@ function doMoreSkill2(vs, btn, glpktxt1, glpktxt2) {
     job.postMessage({action: 'load', data: glpktxt, mip: true});
 }
 
-//// localstrageの記録と回復
+//// localstorageの記録と回復
 // UIのパラメータをlocal storageへ保存
 function saveUIparam() {
     // (GLPKでない) 変数名をキーにして辞書を作る
@@ -483,18 +483,18 @@ function saveUIparam() {
 	}
 	// 寄与元が定数なら単にresに登録、違うなら順にためる
 	if (xs[3].tagName != 'SELECT' && xs[3].tagName != 'INPUT') {
-	    res[vname[get_value(xs[3])]] = h;
+	    res[simgenenv['vname'][get_value(xs[3])]] = h;
 	} else {
 	    res[uicnt] = h;
 	}
     }
     // 記録
-    localStorage[glpklocalstoragekey] = JSON.stringify(res);
+    localStorage[simgenenv['localstorage']] = JSON.stringify(res);
 }
 
 // UIのパラメータをlocal storageから回復
 function loadUIparam() {
-    var str = localStorage[glpklocalstoragekey];
+    var str = localStorage[simgenenv['localstorage']];
     var dic = str ? JSON.parse(str) : {};
     var uis = document.querySelectorAll('.ui');
     for (var elt of uis) {
@@ -503,7 +503,7 @@ function loadUIparam() {
 	var xs = elt.children;
 	// 寄与元が定数かどうかで、dicのキーを決める
 	var k = (xs[3].tagName == 'SELECT' || xs[3].tagName == 'INPUT') ?
-	    String(uicnt) : vname[get_value(xs[3])];
+	    String(uicnt) : simgenenv['vname'][get_value(xs[3])];
 	if (! (k in dic)) { continue; }
 	// 安全のため定数でない要素にのみ値を設定
 	for (var ii in dic[k]) {
