@@ -2,12 +2,26 @@
 // 検索ボタン (not 追加検索) で起動されるworkerが代入される
 var job;
 //// simgen.rbで生成されhtmlで定義される定数
-var glpkmaximize, glpksubj, glpkgenerals; // GLPKソースのうち確定部分
+// var glpkmaximize, glpksubj, glpkgenerals; // GLPKソースのうち確定部分
 var vname; 	// GLPK変数=>変数名の辞書
 var group; 	// グループ名=>[GLPK変数]の辞書
 var summary; 	// SUMMARYセクションそのままの配列
 var details; 	// SUMMARYセクションそのままの配列
 var glpklocalstoragekey; // Local storage key
+
+//// simgen.rbで生成されhtmlで定義される変数
+// simgen.rbで取得された以下の情報の辞書 (simgenenv['vname']等)
+// vname		GLPK変数=>変数名の辞書
+// group 		グループ名=>[GLPK変数]の辞書
+// summary 		SUMMARYセクションそのままの配列
+// details 		SUMMARYセクションそのままの配列
+// localstoragekey 	Local storage key
+// url			simgenlib.js等のあるフォルダのurl
+var simgenenv;
+
+// GLPKソースのうち確定部分の辞書 (glpk['maximize']等)
+// maximize, subj, generals
+var glpk;
 
 //// 検索ボタン押下時の処理
 // 検索ボタンのイベントハンドラ
@@ -46,8 +60,8 @@ function updateQueryBtn(val) {
 // boundsは何も確定していない。
 function doQueryBtnRun() {
     // UIから変数の値を取得して (Subject to への追加分と、Bounds全体) GLPKソースを構築
-    var glpktxt = glpkmaximize + glpksubj + get_glpk_ui() +
-	get_glpk_bounds() + glpkgenerals;
+    var glpktxt = glpk['maximize'] + glpk['subj'] + get_glpk_ui() +
+	get_glpk_bounds() + glpk['generals'];
     // GLPKを表示する設定なら変数の対応やソースを表示
     if (glpkshow()) {
 	console.log(glpktxt);
@@ -70,8 +84,8 @@ function doQueryBtnStop() {
 
 // 検索ボタンで「追加検索」
 function doQueryBtnAdd() {
-    var glpktxt = glpkmaximize + glpksubj + get_glpk_ui() + get_glpk_add() +
-	get_glpk_bounds() + glpkgenerals;
+    var glpktxt = glpk['maximize'] + glpk['subj'] + get_glpk_ui() +
+	get_glpk_add() + get_glpk_bounds() + glpk['generals'];
     doGLPK(glpktxt);
 }
 
@@ -409,8 +423,8 @@ function doMoreSkillBtn(ev) {
     var btn = ev.target;
     btn.disabled = 'true';
     // 確定しているGLPKソースを作成
-    var glpktxt1 = glpksubj + get_glpk_ui();
-    var glpktxt2 = get_glpk_bounds() + glpkgenerals;
+    var glpktxt1 = glpk['subj'] + get_glpk_ui();
+    var glpktxt2 = get_glpk_bounds() + glpk['generals'];
     // 検索対象の変数グループ取得
     var vs = JSON.parse(btn.getAttribute('vs'));
     // 非同期にglpk実行 (非同期にするため、グループごと渡す)
