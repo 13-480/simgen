@@ -1,13 +1,6 @@
 // -*- mode:js; mode:outline-minor -*-
 // 検索ボタン (not 追加検索) で起動されるworkerが代入される
 var job;
-//// simgen.rbで生成されhtmlで定義される定数
-// var glpkmaximize, glpksubj, glpkgenerals; // GLPKソースのうち確定部分
-var vname; 	// GLPK変数=>変数名の辞書
-var group; 	// グループ名=>[GLPK変数]の辞書
-var summary; 	// SUMMARYセクションそのままの配列
-var details; 	// SUMMARYセクションそのままの配列
-var glpklocalstoragekey; // Local storage key
 
 //// simgen.rbで生成されhtmlで定義される変数
 // simgen.rbで取得された以下の情報の辞書 (simgenenv['vname']等)
