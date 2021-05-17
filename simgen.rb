@@ -716,10 +716,11 @@ EOS
   def gen_html_glpk_data
     res = []
     res.push('<script>')
+    res.push('var glpk = {};')
     # maximize, subj, generalsはArrayなので単に保存
-    res.push('var glpkmaximize = `', @maximize, '`;')
-    res.push('var glpksubj = `', @subj, '`;')
-    res.push('var glpkgenerals = `', @generals, '`;')
+    res.push("glpk['maximize'] = `", @maximize, '`;')
+    res.push("glpk['subj'] = `", @subj, '`;')
+    res.push("glpk['generals'] = `", @generals, '`;')
     res.push('</script>')
   end
 
