@@ -465,7 +465,7 @@ function doMoreSkill2(vs, btn, glpktxt1, glpktxt2) {
 //
 // ローカルストレージに保存するものは、変数名=>{select, input要素の番号=>値} の辞書。
 // select / input要素のないUI部品は値が固定なので保存されない。
-// また、お気に入りでハイライトされているかどうかを"like"=>true/falseで保存する。
+// また、お気に入りでハイライトされているかどうかを"<like>"=>true/falseで保存する。
 // ハイライトできるのもselect / input要素のあるUI部品のみ。
 //
 // また、変数名がselect要素の場合は、変数名をキーにできないので、UI部品のuicnt属性の
@@ -487,7 +487,10 @@ function saveUIparam() {
 		h[String(i)] = get_value(xs[i]);
 	    }
 	}
-	// 寄与元が定数なら単にresに登録、違うなら順にためる
+	// お気に入りを収集
+	var like = (xs.length >=3) && (xs[3].classList.contains('like'));
+	h['<like>'] = like;
+	// 寄与元が定数なら変数名をキー、違うならuicntをキにしてresに登録
 	if (xs[3].tagName != 'SELECT' && xs[3].tagName != 'INPUT') {
 	    res[simgenenv['vname'][get_value(xs[3])]] = h;
 	} else {
@@ -513,9 +516,14 @@ function loadUIparam() {
 	if (! (k in dic)) { continue; }
 	// 安全のため定数でない要素にのみ値を設定
 	for (var ii in dic[k]) {
-	    var i = Number(ii);
-	    if (xs[i].tagName == 'SELECT' || xs[i].tagName == 'INPUT') {
-		set_value(xs[i], dic[k][ii]);
+	    if (ii == '<like>' && xs.length >= 3) { // お気に入りを回復
+		xs[3].classList.remove('like');
+		if (dic[k][ii]) { xs[3].classList.add('like'); }
+	    } else { // プルダウン等を回復
+		var i = Number(ii);
+		if (xs[i].tagName == 'SELECT' || xs[i].tagName == 'INPUT') {
+		    set_value(xs[i], dic[k][ii]);
+		}
 	    }
 	}
     }
