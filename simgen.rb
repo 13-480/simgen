@@ -565,11 +565,12 @@ class GenHTML
 <script type="text/javascript" src="./simgenlib.js"></script>
 <!-- スタイルシート読み込み -->
 <style type="text/css">
-summary.uismry {background: #7799ee;font-weight:bold}
-summary.ressmry {background: #88bb99;font-weight:normal}
+summary.uismry {background: #7799ee; font-weight:bold}
+summary.ressmry {background: #88bb99; font-weight:normal}
 select.hiliteMax {background: #f09090}
 select.hiliteNormal {background: #ffee76}
 select.hiliteMin {background: transparent}
+span.like {border-style: solid; border-color: red; border-width: 2px}
 </style>
 
 </head>
