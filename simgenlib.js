@@ -458,6 +458,19 @@ function doMoreSkill2(vs, btn, glpktxt1, glpktxt2) {
 }
 
 //// localstorageの記録と回復
+//
+// UI部品は、uiクラスを持つspan要素で、内部に以下のspan, select, input要素を持つ。
+//   最小値, 最大値, *フラグ, 変数名, 寄与値1, 寄与先1, 寄与値2, 寄与先2...
+// これらの値はjavascriptから、get_value / set_value でアクセスできる。
+//
+// ローカルストレージに保存するものは、変数名=>{select, input要素の番号=>値} の辞書。
+// select / input要素のないUI部品は値が固定なので保存されない。
+// また、お気に入りでハイライトされているかどうかを"like"=>true/falseで保存する。
+// ハイライトできるのもselect / input要素のあるUI部品のみ。
+//
+// また、変数名がselect要素の場合は、変数名をキーにできないので、UI部品のuicnt属性の
+// 値をキーにする。
+
 // UIのパラメータをlocal storageへ保存
 function saveUIparam() {
     // (GLPKでない) 変数名をキーにして辞書を作る
@@ -547,10 +560,31 @@ function updateHilite(elt) {
     }
 }
 
+//// 変数名をクリックしてお気に入り設定をトグルする
+// UI部品の (0開始で) 3番目がspan要素のとき、それをクリックするとお気に入りにできる
+// ハンドラを設定
+function setLikeHandlers() {
+    var uis = document.querySelectorAll('.ui');
+    for (var elt of uis) {
+	var xs = elt.children;
+	if (xs[3].tagName == 'SPAN') {
+	    xs[3].addEventListener('click', h_Like);
+	}
+    }
+}
+
+// 変数名をクリックしたときのイベントハンドラ
+function h_Like (ev) {
+    if (ev.target.tagName != "SPAN") { return; }
+    ev.target.classList.toggle("like");
+}
+
 //// onload
 onload = function () {
     // UIパラメータの回復
     loadUIparam();
     // プルダウンのイベントハンドラ設定
     setPulldownHandlers();
+    // お気に入り設定のイベントハンドラ設定
+    setLikeHandlers();
 }
