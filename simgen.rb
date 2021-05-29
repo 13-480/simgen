@@ -294,7 +294,19 @@ class SimParser
     if /^-?\d+/ =~ line then # 数値
       [$&.to_i, $']
     elsif /^\[(.*?)\]/ =~ line then # 数値集合 (?は*の最短を指定)
-      [$1.split(' ').map {|x| x.to_i }, $']
+      line = $'
+      res = $1.split(' ').map {|x|
+        if /^-?\d+$/ =~ x then # 数値
+          x.to_i
+        elsif /^(-?\d+)-(-?\d+)$/ =~ x then # 数値-数値
+          ($1.to_i..$2.to_i).to_a
+        else
+          raise
+          return false
+        end
+      }.flatten # 数値-数値のArrayを展開するため
+      [res, line]
+      # [$1.split(' ').map {|x| x.to_i }, $']
     else
       false
     end
@@ -343,12 +355,9 @@ class SimParser
       [:checkbox, $']
     elsif /^(-?\d+)\?/ =~ line then # テキストボックス
       [$1, $']
-    elsif /^-?\d+/ =~ line then # 数値
-      [$&.to_i, $']
-    elsif /^\[(.*)\]/ =~ line then # 数値集合
-      [$1.split(' ').map {|x| x.to_i }, $']
     else
-      [:none, line]
+      res, line1 = parse_intui(line) # 数値、数値集合
+      res ? [res, line1] : [:none, line]
     end
   end
 
