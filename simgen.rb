@@ -570,7 +570,7 @@ summary.ressmry {background: #88bb99; font-weight:normal}
 select.hiliteMax {background: #f09090}
 select.hiliteNormal {background: #ffee76}
 select.hiliteMin {background: transparent}
-span.like {border-style: solid; border-color: red; border-width: 2px}
+span.like {border-style: solid; border-color: red; border-width: 1px}
 </style>
 
 </head>
