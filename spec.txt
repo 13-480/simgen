@@ -100,7 +100,6 @@ TODO: localstorageをJSON.stringifyしてコピペできるように。
 
 TODO: 文字列エスケープ (そもそも文字列がサポートされているか要確認)
 TODO: 数値のプルダウンでの[0-7] 形式
-TODO: mhr2simgen.rb でUIセクションに外部からテキストを読む (護石対応)
 
 **** インポートに関するもの
 | import	装備データのインポート
