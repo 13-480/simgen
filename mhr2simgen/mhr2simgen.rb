@@ -99,7 +99,7 @@ def skill(sklmax)
   res = []
   sklmax.each {|name, maxval|
     rng = "0-#{maxval}"
-    res.push('([%s]..)* %s:{スキル}' % [rng, name])
+    res.push('([%s]..%s)* %s:{スキル}' % [rng, maxval, name])
   }
   res
 end
