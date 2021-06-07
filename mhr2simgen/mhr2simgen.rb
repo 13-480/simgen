@@ -44,7 +44,8 @@ SKILLord = %w(
 爆破属性強化        睡眠属性強化      麻痺属性強化        ＫＯ術          破壊王
 スタミナ奪取        乗り名人          陽動                見切り          弱点特効
 渾身                抜刀術【技】      抜刀術【力】	超会心  	会心撃【属性】
-攻めの守勢          火事場力          逆恨み              逆襲            死中に活
+攻めの守勢          火事場力	龍気活性
+逆恨み              逆襲            死中に活
 不屈                フルチャージ      力の解放            挑戦者          鈍器使い
 集中                強化持続          砲術                匠
 業物                達人芸            心眼                砥石使用高速化
@@ -53,6 +54,7 @@ SKILLord = %w(
 弾導強化            特殊射撃強化      反動軽減            装填速度
 装填拡張            ブレ抑制          速射強化            弓溜め段階解放
 雷紋の一致          風紋の一致        霞皮の恩恵          鋼殻の恩恵      炎鱗の恩恵
+風雷合一
 )
 # 装飾品
 # 00 名前
@@ -97,7 +99,7 @@ def skill(sklmax)
   res = []
   sklmax.each {|name, maxval|
     rng = "0-#{maxval}"
-    res.push('([%s]..%s)* %s:{スキル}' % [rng, maxval, name])
+    res.push('([%s]..)* %s:{スキル}' % [rng, name])
   }
   res
 end
@@ -180,6 +182,84 @@ def equip
   res
 end
 
+# 風雷合一対応版
+# 例えば、
+# 金色ノ添髪,0,7,2,1,0,7,70,76,2,1,3,-5,2,火事場力,2,渾身,1,,,,,,,,,,,,,,,,,,,,,670
+# から、以下を生成する (UIセクションへ)。
+# (0..C) 金色ノ添髪:{頭} -> 90 最終強化防御力, 70 防御力, 2 火耐性, 1 水耐性, 3 雷耐性, -5 氷耐性, 2 龍耐性, 1 Lv2スロ, 1 Lv1スロ, 1 渾身＊, 2 火事場力＊
+#
+# 防具に付いている「風雷合一」以外のスキルを収集して、以下を生成する。
+# UIセクション:
+# (0..) 渾身＊ -> 1 渾身
+# (0..1) 渾身追加4 -> 1 渾身, 1 最大化式
+# (0..1) 渾身追加5 -> 1 渾身, 1 最大化式
+# RELATIONセクション:
+# 渾身追加4 <= 風雷4
+# 渾身追加5 <= 風雷5
+# 渾身追加5 <= 渾身追加4 <= 渾身＊
+
+def equip
+  bs = %w(頭 胴 腕 腰 脚)
+  lss = bs.map {|b|
+    ls = IO.readlines(FILES[b]).map {|x| x.encode('UTF-8', 'UTF-8') }
+    ls.shift # 見出しは捨てる
+    ls
+  }
+  lss = sort_equip(lss).transpose # レア度順に安定ソートし、ない部位はnilで埋める
+  #
+  skls = [] # 防具に付いているスキルのうち風雷合一以外を収集
+  res_ui = [] # UIセクションに置くべきもの (UI付き)
+  res_induce = [] # UIセクションに置くべきもの (UIなし)
+  res_relation = [] # RELATIONセクションに置くべきもの
+  # UIセクション (UI付き) の生成と、防具に付いているスキルの収集
+  lss.each {|lines|
+    lines.each_with_index {|line, i|
+      if line.nil? then # その部位はない
+        res_ui.push('space')
+        next
+      end
+      xs = line.split(',')
+      name, sl1, sl2, sl3, de, demax = xs.values_at(0, 3,4,5, 7,8)
+      taisei = xs[9..13]
+      sklval = xs[14..23] # スキル系統が5つ確保してある
+      demax = de if demax == '' # !! 抜けているものがある
+      # 防御力、耐性
+      str = '(0..C) %s:{%s} -> %s 防御力, %s 最終強化防御力' %
+            [name, bs[i], de, demax]
+      str += ', %s 防具火耐性, %s 防具水耐性, %s 防具雷耐性, %s 防具氷耐性, %s 防具龍耐性' % taisei
+      # スロット
+      slot = Hash.new(0)
+      [sl1, sl2, sl3].each {|sl|
+        slot["Lv#{sl}スロ"] += 1 if sl && sl != '' && sl != '0'
+      }
+      slot.each {|sl, val| str += ", #{val} #{sl}" }
+      # スキル
+      sklval.each_slice(2) {|skl, val|
+        next if skl == '' || val == ''
+        if skl == '風雷合一' then
+          str += ", #{val} #{skl}"
+        else
+          skls |= [skl]
+          str += ", #{val} #{skl}＊"
+        end
+      }
+      res_ui.push str
+    }
+    res_ui.push 'br'
+  }
+  # UIセクション (UIなし) と、RELATIONセクションの生成
+  skls.each {|skl|
+    res_induce.push('(0..) %s＊ -> 1 %s' % [skl, skl])
+    res_induce.push('(0..1) %s追加4 -> 1 %s, 1 最大化式' % [skl, skl])
+    res_induce.push('(0..1) %s追加5 -> 1 %s, 1 最大化式' % [skl, skl])
+    res_relation.push('%s追加4 <= 風雷4' % skl)
+    res_relation.push('%s追加5 <= 風雷5' % skl)
+    res_relation.push('%s追加5 <= %s追加4 <= %s＊' % [skl, skl, skl])
+  }
+  #
+  [res_ui + res_induce, res_relation]
+end
+
 # 装備をレア度で安定ソートし、5部位揃っていないものはnilで補う
 # 防具
 # 00 名前
@@ -234,6 +314,9 @@ def parse_skill
   # SKILLord順に並べかえる
   lines = lines.sort_by {|line|
     name = line.split(',')[0]
+$stderr.puts name if ! SKILLord.index(name)
+
+
     SKILLord.index(name) || 99999 }
 
   #
@@ -280,7 +363,7 @@ sklmax = parse_skill
 # puts sklmax
 de = deco(sklmax)
 sk = skill(sklmax)
-eq = equip
+eq_ui, eq_rel = equip
 if ARGV.size > 0 then
   lines = ARGF.to_a.map {|line| line.encode('UTF-8', 'UTF-8') }.join
 else
@@ -288,12 +371,13 @@ else
 end
 
 puts DATA.to_a.join % [
-       eq.join("\n") + "\n" + lines,
+       eq_ui.join("\n") + "\n" + lines,
        de.join("\n"),
        sk.join("\n"),
+       eq_rel.join("\n"),
      ]
 
-# DATAはmhrシミュの雛形。%sは3つあり、順に、防具、装飾品、スキル条件
+# DATAはmhrシミュの雛形。%sは4つあり、順に、防具、装飾品、スキル条件、関係式
 __END__
 <META>
 title mhrシミュ
@@ -308,6 +392,9 @@ subsection 防具
 (0..1) 腕防具なし:{腕}
 (0..1) 腰防具なし:{腰}
 (0..1) 脚防具なし:{脚}
+
+(0..1) 風雷4 -> 1 最大化式
+(0..1) 風雷5 -> 1 最大化式
 
 #### 以下の防具はデータベースから作成
 %s
@@ -362,23 +449,6 @@ br
 br
 (0..C) 護石20:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
 br
-(0..C) 護石21:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
-br
-(0..C) 護石22:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
-br
-(0..C) 護石23:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
-br
-(0..C) 護石24:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
-br
-(0..C) 護石25:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
-br
-(0..C) 護石26:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
-br
-(0..C) 護石27:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
-br
-(0..C) 護石28:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
-br
-(0..C) 護石29:{護石} -> [0-3] [スキルなし {スキル}], [0-3] [スキルなし {スキル}], [0-3] Lv1スロ, [0-3] Lv2スロ, [0-3] Lv3スロ
 
 #### 以下のスキル条件はデータベースから作成
 subsection スキル条件
@@ -424,6 +494,12 @@ Lv3以上空きスロ <= Lv3スロ
 Lv1空きスロ = Lv1以上空きスロ - Lv2以上空きスロ
 Lv2空きスロ = Lv2以上空きスロ - Lv3以上空きスロ
 Lv3空きスロ = Lv3以上空きスロ
+
+4 風雷4 <= 風雷合一
+5 風雷5 <= 風雷合一
+
+#### 以下の関係式は条件はデータベースから作成
+%s
 
 <QUERY>
 query 検索 検索中止 追加検索 最大化式
