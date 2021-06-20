@@ -506,7 +506,7 @@ query 検索 検索中止 追加検索 最大化式
 
 <SUMMARY>
 width:50px
-v 防御力
+v 最終強化防御力
 width:150px
 n* {頭}
 n* {胴}
