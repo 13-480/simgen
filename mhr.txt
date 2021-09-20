@@ -3,6 +3,7 @@ title mhrシミュ
 # glpk show
 localstrage simgenMHR
 
+
 <UI>
 width:150px
 subsection 防具
